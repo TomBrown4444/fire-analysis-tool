@@ -1,5 +1,5 @@
 """
-Main Streamlit app for the Fire Analysis Tool.
+Main Streamlit app for the Fire Investigation Tool.
 Entry point for the application that integrates all components.
 """
 import streamlit as st
@@ -46,7 +46,7 @@ def main():
     st.markdown(custom_css(), unsafe_allow_html=True)
     
     # Title and description
-    st.title("Fire Analysis Tool")
+    st.title("Fire Investigation Tool")
     st.markdown("---")
     
     # Initialize session state for results and selected cluster
@@ -115,7 +115,23 @@ def main():
             Raw Data: All data points including noise points not assigned to clusters
             """
         )
-               
+        
+        from app.config.settings import download_country_geojson
+
+        # Before calling plot_fire_detections_folium
+        country_geojson_path = download_country_geojson(country)
+
+        # Then pass it to your plot function
+        folium_map = plot_fire_detections_folium(
+            st.session_state.results, 
+            f"{category_display} Clusters - {country}", 
+            st.session_state.get('selected_cluster'),
+            category=category,
+            color_palette=map_settings.get('color_palette', DEFAULT_COLOR_PALETTE),
+            dot_size_multiplier=map_settings.get('dot_size_multiplier', DEFAULT_DOT_SIZE_MULTIPLIER),
+            country_geojson=country_geojson_path  # Add this parameter
+        )
+        
         # Handle cluster selection from URL parameters
         if cluster_id is not None and 'results' in st.session_state and st.session_state.results is not None:
             if st.session_state.get('selected_cluster') != cluster_id:
@@ -195,14 +211,10 @@ def main():
                                     
             # Add time-based clustering parameter
             max_time_diff = st.slider("Max Days Between Events (Same Cluster)", 1, 10, value=5, step=1,
-                            help="Maximum days between fire events to be considered same cluster.")
-    
-            show_multiday_only = st.checkbox("Show only multi-day fires", value=False,
-                            help="Filter to show only fires that span multiple days")
+                                    help="Maximum days between fire events to be considered same cluster. Lower values create more temporally distinct clusters.")
             
-            # Add the new toggle for strict country filtering (OFF by default)
-            use_strict_country_filtering = st.checkbox("Strict country filtering", value=False,
-                            help="Filter points to only those within exact country borders instead of rectangular bounding box")
+            show_multiday_only = st.checkbox("Show only multi-day fires", value=False,
+                               help="Filter to show only fires that span multiple days")
         
         # Generate button
         generate_button = st.button("Generate Analysis", key="generate_button", use_container_width=True)
@@ -223,8 +235,7 @@ def main():
                     eps=eps,
                     min_samples=min_samples,
                     chunk_days=7,
-                    max_time_diff_days=max_time_diff,
-                    use_strict_country_filtering=use_strict_country_filtering
+                    max_time_diff_days=max_time_diff
                 )
                 
                 # MULTI-DAY FILTERING CODE
@@ -274,11 +285,11 @@ def main():
         # First handle URL parameters
         handle_url_parameters(category)
         
-        # Get category display name for UI (moved outside the if statement)
-        category_display = get_category_display_name(category)
-        
         # Then check for results
         if 'results' in st.session_state and st.session_state.results is not None and not st.session_state.results.empty:
+            # Get category display name for UI
+            category_display = get_category_display_name(category)
+            
             st.subheader(f"Detection Map")
             
             # Set up variables for map creation

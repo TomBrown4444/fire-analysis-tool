@@ -77,7 +77,7 @@ class FIRMSHandler:
                 )
                 
                 filtered_df = df[bbox_mask].copy()
-#                st.info(f"Filtered data to {len(filtered_df)} points within the selected country boundaries.")
+                st.info(f"Filtered data to {len(filtered_df)} points within the selected country boundaries.")
                 
                 # If filtering resulted in too few points, return the filtered df without clustering
                 if len(filtered_df) < min_samples:
@@ -143,8 +143,7 @@ class FIRMSHandler:
         eps=0.01,
         min_samples=5,
         chunk_days=7,  # Default chunk size
-        max_time_diff_days=5,  # Maximum days gap to consider as same fire
-        use_strict_country_filtering=False
+        max_time_diff_days=5  # Maximum days gap to consider as same fire
     ):
         """
         Fetch and process fire data from FIRMS API with support for historical data.
@@ -462,7 +461,6 @@ class FIRMSHandler:
             st.warning(f"No records found for {category} in {country or 'selected region'} for the selected date range")
             return None
         
-
         
         # Apply bbox filtering to make sure points are within country boundaries
         if bbox and not all_results.empty:
@@ -480,7 +478,7 @@ class FIRMSHandler:
                 )
                 
                 filtered_df = all_results[bbox_mask].copy()
-#                st.info(f"Filtered data to {len(filtered_df)} points within the selected country boundaries.")
+                st.info(f"Filtered data to {len(filtered_df)} points within the selected country boundaries.")
                 
                 if len(filtered_df) == 0:
                     st.warning(f"No points found within the specified bounding box for {country or 'selected region'}.")
@@ -524,14 +522,14 @@ class FIRMSHandler:
                             
                             if points_in_country:
                                 all_results = all_results.loc[points_in_country].copy()
-                                st.success(f"Strict filtering applied: {len(all_results)} points within actual {country} borders (removed {initial_count - len(all_results)} points outside borders).")
+                                st.success(f"Filtered to {len(all_results)} points within the actual {country} borders (removed {initial_count - len(all_results)} points outside borders).")
                             else:
-                                st.warning(f"No points found within the actual borders of {country} with strict filtering.")
+                                st.warning(f"No points found within the actual borders of {country}.")
                                 return None
                     except ImportError:
-                        st.warning("Shapely library not installed. Cannot apply strict country filtering.")
+                        st.warning("Shapely library not installed. Cannot filter by precise country borders.")
                     except Exception as e:
-                        st.warning(f"Could not apply strict country filtering: {str(e)}")
+                        st.warning(f"Could not filter by country polygon: {str(e)}")
                     
         # Apply clustering to the results if needed
         if use_clustering and not all_results.empty:

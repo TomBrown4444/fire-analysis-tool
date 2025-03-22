@@ -143,8 +143,7 @@ class FIRMSHandler:
         eps=0.01,
         min_samples=5,
         chunk_days=7,  # Default chunk size
-        max_time_diff_days=5,  # Maximum days gap to consider as same fire
-        use_strict_country_filtering=False
+        max_time_diff_days=5  # Maximum days gap to consider as same fire
     ):
         """
         Fetch and process fire data from FIRMS API with support for historical data.
@@ -524,14 +523,14 @@ class FIRMSHandler:
                             
                             if points_in_country:
                                 all_results = all_results.loc[points_in_country].copy()
-                                st.success(f"Strict filtering applied: {len(all_results)} points within actual {country} borders (removed {initial_count - len(all_results)} points outside borders).")
+                                st.success(f"Filtered to {len(all_results)} points within the actual {country} borders (removed {initial_count - len(all_results)} points outside borders).")
                             else:
-                                st.warning(f"No points found within the actual borders of {country} with strict filtering.")
+                                st.warning(f"No points found within the actual borders of {country}.")
                                 return None
                     except ImportError:
-                        st.warning("Shapely library not installed. Cannot apply strict country filtering.")
+                        st.warning("Shapely library not installed. Cannot filter by precise country borders.")
                     except Exception as e:
-                        st.warning(f"Could not apply strict country filtering: {str(e)}")
+                        st.warning(f"Could not filter by country polygon: {str(e)}")
                     
         # Apply clustering to the results if needed
         if use_clustering and not all_results.empty:

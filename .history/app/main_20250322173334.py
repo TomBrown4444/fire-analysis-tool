@@ -223,8 +223,7 @@ def main():
                     eps=eps,
                     min_samples=min_samples,
                     chunk_days=7,
-                    max_time_diff_days=max_time_diff,
-                    use_strict_country_filtering=use_strict_country_filtering
+                    max_time_diff_days=max_time_diff
                 )
                 
                 # MULTI-DAY FILTERING CODE

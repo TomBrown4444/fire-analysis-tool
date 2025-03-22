@@ -195,14 +195,10 @@ def main():
                                     
             # Add time-based clustering parameter
             max_time_diff = st.slider("Max Days Between Events (Same Cluster)", 1, 10, value=5, step=1,
-                            help="Maximum days between fire events to be considered same cluster.")
-    
-            show_multiday_only = st.checkbox("Show only multi-day fires", value=False,
-                            help="Filter to show only fires that span multiple days")
+                                    help="Maximum days between fire events to be considered same cluster. Lower values create more temporally distinct clusters.")
             
-            # Add the new toggle for strict country filtering (OFF by default)
-            use_strict_country_filtering = st.checkbox("Strict country filtering", value=False,
-                            help="Filter points to only those within exact country borders instead of rectangular bounding box")
+            show_multiday_only = st.checkbox("Show only multi-day fires", value=False,
+                               help="Filter to show only fires that span multiple days")
         
         # Generate button
         generate_button = st.button("Generate Analysis", key="generate_button", use_container_width=True)
@@ -223,8 +219,7 @@ def main():
                     eps=eps,
                     min_samples=min_samples,
                     chunk_days=7,
-                    max_time_diff_days=max_time_diff,
-                    use_strict_country_filtering=use_strict_country_filtering
+                    max_time_diff_days=max_time_diff
                 )
                 
                 # MULTI-DAY FILTERING CODE

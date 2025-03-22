@@ -15,10 +15,13 @@ from io import BytesIO
 
 from app.core.utils import get_temp_column, get_category_display_name
 
+USE_GEOJSON_BORDERS = True
+
 def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=None, 
                               playback_mode=False, playback_date=None, 
                               dot_size_multiplier=1.0, color_palette='inferno', 
                               category="fires"):
+    from app.config.settings import USE_GEOJSON_BORDERS, get_country_geojson
     """
     Plot fire detections on a folium map with color palette based on temperature.
     
@@ -35,6 +38,25 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     Returns:
         folium.Map: Folium map object
     """
+    if USE_GEOJSON_BORDERS and title:
+        # Extract country name from title - assumes format "Something - Country"
+        parts = title.split(" - ")
+        if len(parts) > 1:
+            country_name = parts[-1]
+            # Get GeoJSON data for the country
+            country_geojson = get_country_geojson(country_name)
+            if country_geojson:
+                # Add GeoJSON to the map
+                folium.GeoJson(
+                    country_geojson,
+                    name='Country Border',
+                    style_function=lambda x: {
+                        'fillColor': 'transparent',
+                        'color': '#3186cc',
+                        'weight': 2,
+                        'dashArray': '5, 5'
+                    }
+                ).add_to(m)
                 
     from app.config.settings import BASEMAP_TILES, COLOR_PALETTES
     
@@ -57,6 +79,24 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     if playback_mode and playback_date is not None:
         plot_df = plot_df[plot_df['acq_date'] == playback_date].copy()
         title = f"{title} - {playback_date}"
+        
+    if USE_GEOJSON_BORDERS and title:
+        # Extract country name from title
+        country_name = title.split(' - ')[-1]
+        country_geojson = get_country_geojson(country_name)
+        
+        if country_geojson:
+            # Add GeoJSON layer
+            folium.GeoJson(
+                country_geojson,
+                name='Country Border',
+                style_function=lambda x: {
+                    'fillColor': 'transparent',
+                    'color': '#3186cc',
+                    'weight': 2,
+                    'dashArray': '5, 5'
+                }
+            ).add_to(m)
     
     # Check if there is any data to plot
     if plot_df.empty:
@@ -85,7 +125,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
         """
         
         m.get_root().html.add_child(folium.Element(empty_info))
-        return m     
+        return m
     
     # Calculate the bounding box for auto-zoom
     min_lat = plot_df['latitude'].min()
@@ -107,7 +147,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     # Create the map with simplified attribution
     m = folium.Map(location=[center_lat, center_lon], control_scale=True, 
                   tiles=initial_tiles, attr=tile_attr)
-    
+                  
     if USE_GEOJSON_BORDERS and title:
         # Extract country name from title
         parts = title.split(" - ")
@@ -126,7 +166,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                         'weight': 2,
                         'dashArray': '5, 5'
                     }
-                ).add_to(m)              
+                ).add_to(m)
  
     attribution_css = """
     <style>
@@ -461,26 +501,6 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
                   zoom_start=zoom_level,
                   tiles=initial_tiles,
                   attr=tile_attr)
-    
-    if USE_GEOJSON_BORDERS and title:
-        # Extract country name from title
-        parts = title.split(" - ")
-        if len(parts) > 1:
-            country_name = parts[-1]
-            # Get GeoJSON data for the country
-            country_geojson = get_country_geojson(country_name)
-            if country_geojson:
-                # Add GeoJSON to the map
-                folium.GeoJson(
-                    country_geojson,
-                    name='Country Border',
-                    style_function=lambda x: {
-                        'fillColor': 'transparent',
-                        'color': '#3186cc',
-                        'weight': 2,
-                        'dashArray': '5, 5'
-                    }
-                ).add_to(m)
     
     # Add the actual required attribution in a more discreet way
     attribution_css = """

@@ -1,0 +1,53 @@
+"""
+GeoJSON handling for country borders in the Fire Investigation Tool.
+"""
+import json
+import os
+from pathlib import Path
+
+# Create directory for GeoJSON files
+GEOJSON_DIR = Path("app/data/geojson")
+os.makedirs(GEOJSON_DIR, exist_ok=True)
+
+def get_country_geojson(country_name):
+    """Get GeoJSON for a country, downloading it if needed."""
+    try:
+        import geopandas as gpd
+    except ImportError:
+        print("geopandas is not installed. Install with 'pip install geopandas'")
+        return None
+        
+    # Create a safe filename
+    safe_name = country_name.lower().replace(' ', '_')
+    filepath = GEOJSON_DIR / f"{safe_name}.geojson"
+    
+    # If file exists, load it
+    if filepath.exists():
+        try:
+            with open(filepath, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading GeoJSON for {country_name}: {e}")
+            
+    # Otherwise download it
+    try:
+        # Load world data from Natural Earth
+        world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+        
+        # Find the country
+        country_data = world[world.name.str.lower() == country_name.lower()]
+        
+        if country_data.empty:
+            print(f"Country '{country_name}' not found in Natural Earth data")
+            return None
+            
+        # Save to file
+        country_data.to_file(filepath, driver='GeoJSON')
+        
+        # Load and return
+        with open(filepath, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error getting GeoJSON for {country_name}: {e}")
+        
+    return None

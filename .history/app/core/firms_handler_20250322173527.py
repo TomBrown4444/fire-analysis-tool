@@ -143,7 +143,7 @@ class FIRMSHandler:
         eps=0.01,
         min_samples=5,
         chunk_days=7,  # Default chunk size
-        max_time_diff_days=5,  # Maximum days gap to consider as same fire
+        max_time_diff_days=5  # Maximum days gap to consider as same fire
         use_strict_country_filtering=False
     ):
         """
