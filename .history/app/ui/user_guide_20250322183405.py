@@ -13,7 +13,7 @@ Contains the User Guide content in markdown format.
 """
 
 USER_GUIDE_MARKDOWN = """
-# User Guide
+# Fire Investigation Tool: User Guide
 
 ## About This Tool
 
@@ -32,11 +32,11 @@ These satellites orbit the Earth and pass over most locations once per day, capt
 
 ### Basic Operation
 
-1. **Select a Country**: Choose the country you want to monitor from the dropdown menu. (Many fires will appear outside a country's borders, but you can restrict the results by selecting 'Strict Country Filtering' under the 'Advanced Clustering Settings' tab.)
-2. **Select Datasets**: Choose which satellite datasets to use (VIIRS NOAA-20, VIIRS SNPP, MODIS). 
-3. **Select Category**: Choose between fires, flares, or raw data. (Flares are industrial heat sources, while raw data includes all thermal anomalies. There may be some overlap between 'fires' and 'flares'.)
+1. **Select a Country**: Choose the country you want to monitor from the dropdown menu.
+2. **Select Datasets**: Choose which satellite datasets to use (VIIRS NOAA-20, VIIRS SNPP, MODIS).
+3. **Select Category**: Choose between fires, flares, or raw data.
 4. **Select Date Range**: Set your desired monitoring period.
-5. **Advanced Settings** (Optional): Adjust clustering parameters for more precise analysis. (A 'cluster' is essentially a fire identified using machine learning algorithims. For most users, the default settings will work well.)
+5. **Advanced Settings** (Optional): Adjust clustering parameters for more precise analysis.
 6. **Click "Generate Analysis"**: Process the data and create visualizations.
 
 ### Analyzing Results
@@ -87,9 +87,4 @@ This tool connects to NASA FIRMS using an API key. The default key belongs to th
 - Satellite sensors detect thermal anomalies, not just fires (e.g., industrial heat sources).
 - Data availability depends on satellite coverage, cloud cover, and processing time.
 - Each satellite makes approximately one daytime and one nighttime pass over most locations.
-
-## Contact details
-
-- The tool was made by investigative journalist Tom Brown as part of the Bellingcat Technology Fellowship. If you find a problem with it or would like to share tips or story ideas, please contact him at: tom.brown_journalist@outlook.com
 """
-

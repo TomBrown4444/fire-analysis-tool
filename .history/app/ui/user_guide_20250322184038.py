@@ -13,7 +13,7 @@ Contains the User Guide content in markdown format.
 """
 
 USER_GUIDE_MARKDOWN = """
-# User Guide
+# Fire Investigation Tool: User Guide
 
 ## About This Tool
 

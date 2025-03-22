@@ -13,7 +13,7 @@ Contains the User Guide content in markdown format.
 """
 
 USER_GUIDE_MARKDOWN = """
-# User Guide
+# Fire Investigation Tool: User Guide
 
 ## About This Tool
 
@@ -87,9 +87,4 @@ This tool connects to NASA FIRMS using an API key. The default key belongs to th
 - Satellite sensors detect thermal anomalies, not just fires (e.g., industrial heat sources).
 - Data availability depends on satellite coverage, cloud cover, and processing time.
 - Each satellite makes approximately one daytime and one nighttime pass over most locations.
-
-## Contact details
-
-- The tool was made by investigative journalist Tom Brown as part of the Bellingcat Technology Fellowship. If you find a problem with it or would like to share tips or story ideas, please contact him at: tom.brown_journalist@outlook.com
 """
-
