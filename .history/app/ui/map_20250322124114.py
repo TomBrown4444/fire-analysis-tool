@@ -259,7 +259,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                         border: none; 
                         border-radius: 5px; 
                         cursor: pointer;">
-                    Please select {point['cluster']} from the drop-down menu below
+                    Select Cluster {point['cluster']}
                 </button>
             </div>
             """
@@ -371,6 +371,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                           border: none; 
                           border-radius: 5px; 
                           cursor: pointer;">
+                Export Map
             </button>
         </div>
         <script>

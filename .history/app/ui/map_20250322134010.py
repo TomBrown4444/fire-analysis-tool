@@ -357,6 +357,42 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     """
     m.get_root().html.add_child(folium.Element(info_text))
     
+    # Add "Exit Cluster Selection" button if a cluster is currently selected
+    if selected_cluster is not None:
+        exit_button = """
+        <div style="position: fixed; 
+                    top: 10px; 
+                    right: 10px; 
+                    z-index: 9999;">
+            <button id="exit_cluster_button" 
+                    style="background-color: #f44336; 
+                          color: white; 
+                          padding: 10px 20px; 
+                          border: none; 
+                          border-radius: 5px; 
+                          cursor: pointer;
+                          font-weight: bold;">
+                ← Exit Cluster Selection
+            </button>
+        </div>
+        <script>
+        document.getElementById('exit_cluster_button').addEventListener('click', function() {
+            // Clear selected cluster from URL and session state
+            const url = new URL(window.parent.location);
+            url.searchParams.delete('selected_cluster');
+            window.parent.history.pushState({}, '', url);
+            
+            // Dispatch a custom event to notify Streamlit
+            const event = new CustomEvent('exit_cluster_selection', {});
+            window.parent.document.dispatchEvent(event);
+            
+            // Trigger page reload to apply changes
+            window.parent.location.reload();
+        });
+        </script>
+        """
+        m.get_root().html.add_child(folium.Element(exit_button))
+    
     # Add export button if a cluster is selected
     if selected_cluster is not None:
         export_button = """

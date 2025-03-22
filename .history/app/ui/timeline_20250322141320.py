@@ -907,6 +907,9 @@ def export_single_cluster_timeline(df, cluster_id, category, playback_dates, bas
         progress_bar.empty()
         status_text.empty()
 
+
+# CHANGE 3: Fix the export_all_clusters_timeline function
+
 def export_single_cluster_timeline(df, cluster_id, category, playback_dates, basemap_tiles, basemap):
     """
     Export timeline for a single cluster.

@@ -3,15 +3,14 @@ Map visualization components for the Fire Investigation Tool.
 Provides functions to create and display interactive maps using folium.
 """
 import folium
-from folium.plugins import Fullscreen, Draw
+from folium.plugins import Fullscreen
 from branca.colormap import LinearColormap
 import streamlit.components.v1 as components
 import streamlit as st
 import pandas as pd
-import base64
-from io import BytesIO
 
 from app.core.utils import get_temp_column, get_category_display_name
+from app.config.settings import BASEMAP_TILES, COLOR_PALETTES
 
 def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=None, playback_mode=False, playback_date=None, dot_size_multiplier=1.0, color_palette='inferno', category="fires"):
     """
@@ -30,8 +29,6 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     Returns:
         folium.Map: Folium map object
     """
-    from app.config.settings import BASEMAP_TILES, COLOR_PALETTES
-    
     # Create a working copy of the dataframe
     plot_df = df.copy()
     
@@ -57,8 +54,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
         st.warning("No data to plot for the selected filters.")
         # Create an empty map with default center if no data
         m = folium.Map(location=[34.0, 65.0], zoom_start=4, control_scale=True, 
-                      tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                      attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community')
+                      tiles='cartodbdark_matter')
         
         # Add information about why map is empty
         empty_info = """
@@ -94,56 +90,24 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     # Determine which temperature column to use
     temp_col = get_temp_column(plot_df)
     
-    # Set the initial tiles to satellite
-    initial_tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-    tile_attr = 'Default Satellite Basemap'  # Simplified display name
+    # Set the initial tiles based on basemap parameter (defaulting to dark if not specified)
+    initial_tiles = 'cartodbdark_matter'
+    basemap = st.session_state.get('basemap', 'Dark')
+    if basemap in BASEMAP_TILES:
+        initial_tiles = BASEMAP_TILES[basemap]
     
-    # Create the map with simplified attribution
     m = folium.Map(location=[center_lat, center_lon], control_scale=True, 
-                  tiles=initial_tiles, attr=tile_attr)
-                  
-    # Add the actual required attribution in a more discreet way
-    attribution_css = """
-    <style>
-    .leaflet-control-attribution {
-        font-size: 8px !important;
-        background-color: rgba(0,0,0,0.5) !important;
-        color: #ddd !important;
-        padding: 0 5px !important;
-        bottom: 0 !important;
-        right: 0 !important;
-        position: absolute !important;
-    }
-    </style>
-    """
-    m.get_root().html.add_child(folium.Element(attribution_css))
+                  tiles=initial_tiles)  # Set the base map from user selection
     
     Fullscreen().add_to(m)
     
     # Automatically zoom to fit all points
     m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], padding=(50, 50))
     
-    # Fix whitespace issue by modifying the title HTML
+    # Add a title to the map
     title_html = f'''
-    <style>
-        .leaflet-container {{ 
-            margin-top: 0 !important; 
-            padding-top: 0 !important;
-        }}
-        .map-title {{ 
-            position: absolute; 
-            z-index: 999; 
-            left: 50%; 
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-        }}
-    </style>
-    <div class="map-title"><b>{title}</b></div>
-    '''
+             <h3 align="center" style="font-size:16px; color: white;"><b>{title}</b></h3>
+             '''
     m.get_root().html.add_child(folium.Element(title_html))
     
     # Create feature groups for different sets of points
@@ -252,15 +216,17 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                 <p><b>Time:</b> {point['acq_time']}</p>
                 <p><b>FRP:</b> {point['frp']:.2f}</p>
                 <p><b>Coordinates:</b> {point['latitude']:.4f}, {point['longitude']:.4f}</p>
-                <button onclick="selectCluster({point['cluster']})" 
-                style="background-color: #4CAF50; 
+                <a href="?selected_cluster={point['cluster']}" 
+                style="display: inline-block; 
+                        background-color: #4CAF50; 
                         color: white; 
                         padding: 10px 20px; 
                         border: none; 
                         border-radius: 5px; 
-                        cursor: pointer;">
-                    Please select {point['cluster']} from the drop-down menu below
-                </button>
+                        cursor: pointer; 
+                        text-decoration: none;">
+                    Select Cluster {point['cluster']}
+                </a>
             </div>
             """
             popup = folium.Popup(popup_html, max_width=300)
@@ -280,7 +246,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     fg_all.add_to(m)
     fg_selected.add_to(m)
 
-    # Add base layers with explicit names - using satellite as default
+    # Add base layers with explicit names
     folium.TileLayer(
         'cartodbpositron', 
         name='Light Map',
@@ -302,40 +268,19 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     folium.TileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         name='Satellite',
-        attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-        overlay=False,
-        control=True
+        attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
     ).add_to(m)
 
-    # Add only ONE layer control
-    layer_control = folium.LayerControl(position='topright')
-    layer_control.add_to(m)
+    # Now add the layer control after all layers are added
+    folium.LayerControl(position='topright').add_to(m)
 
     # If you have a temperature colormap, add it after the layer control
     if temp_col:
         colormap.add_to(m)
     
-    # Add script to handle cluster selection
-    select_cluster_script = """
-    <script>
-    function selectCluster(clusterId) {
-        // Update URL parameters
-        const url = new URL(window.parent.location);
-        url.searchParams.set('selected_cluster', clusterId);
-        window.parent.history.pushState({}, '', url);
-        
-        // Dispatch a custom event that Streamlit can listen for
-        const event = new CustomEvent('cluster_selected', { detail: { cluster: clusterId } });
-        window.parent.document.dispatchEvent(event);
-        
-        // Reload the page to apply the selection
-        window.parent.location.reload();
-    }
-    </script>
-    """
-    m.get_root().html.add_child(folium.Element(select_cluster_script))
+    folium.LayerControl().add_to(m)
     
-    # Add an interaction explanation with instructions
+    # Add an interaction explanation with instructions to use UI for selection
     info_text = """
     <div style="position: fixed; 
                 bottom: 20px; 
@@ -350,46 +295,16 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
         <b>Interaction:</b><br>
         • Hover over points to see details<br>
         • Click points to view full information<br>
-        • Select a cluster to view timeline<br>
+        • Use the dropdown menu on the right to select clusters<br>
         • Zoom with +/- or mouse wheel<br>
         • Change base maps with layer control (top right)
     </div>
     """
     m.get_root().html.add_child(folium.Element(info_text))
     
-    # Add export button if a cluster is selected
-    if selected_cluster is not None:
-        export_button = """
-        <div style="position: fixed; 
-                    top: 10px; 
-                    right: 10px; 
-                    z-index: 9999;">
-            <button id="export_map_button" 
-                    style="background-color: #4CAF50; 
-                          color: white; 
-                          padding: 10px 20px; 
-                          border: none; 
-                          border-radius: 5px; 
-                          cursor: pointer;">
-            </button>
-        </div>
-        <script>
-        document.getElementById('export_map_button').addEventListener('click', function() {
-            // Trigger the export timeline function
-            const exportButtons = Array.from(window.parent.document.querySelectorAll('button'));
-            const exportButton = exportButtons.find(btn => btn.innerText === 'Export Timeline');
-            if (exportButton) {
-                exportButton.click();
-            }
-        });
-        </script>
-        """
-        m.get_root().html.add_child(folium.Element(export_button))
-    
     return m
 
-
-def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_level=None, dot_color=None, border_color=None):
+def create_export_map(data, title, basemap_tiles, basemap):
     """
     Create a simplified map for export.
     
@@ -398,14 +313,11 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
         title (str): Map title
         basemap_tiles (dict): Dictionary of basemap tiles
         basemap (str): Basemap name
-        zoom_level (int, optional): Specific zoom level to use
-        dot_color (str, optional): Color for dots if not using temperature-based coloring
-        border_color (str, optional): Border color for dots
         
     Returns:
         str: HTML string representation of the map
     """
-    from app.config.settings import COLOR_PALETTES
+    import pandas as pd
     
     if data.empty:
         return None
@@ -420,126 +332,32 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
     center_lat = (min_lat + max_lat) / 2
     center_lon = (min_lon + max_lon) / 2
     
-    # Always use satellite basemap for exports by default
-    initial_tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-    tile_attr = 'Satellite Basemap'
-    
-    # If user specifically selected a different basemap, honor that choice
-    if basemap != 'Satellite' and basemap in basemap_tiles:
+    # Set the initial tiles based on basemap
+    initial_tiles = 'cartodbdark_matter'
+    if basemap in basemap_tiles:
         initial_tiles = basemap_tiles[basemap]
     
-    # Create the map with a default zoom level if not specified
-    if zoom_level is None:
-        zoom_level = 10
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=10, 
+                  tiles=initial_tiles)
     
-    m = folium.Map(location=[center_lat, center_lon], 
-                  zoom_start=zoom_level,
-                  tiles=initial_tiles,
-                  attr=tile_attr)
-    
-    # Add the actual required attribution in a more discreet way
-    attribution_css = """
-    <style>
-    .leaflet-control-attribution {
-        font-size: 8px !important;
-        background-color: rgba(0,0,0,0.5) !important;
-        color: #ddd !important;
-        padding: 0 5px !important;
-        bottom: 0 !important;
-        right: 0 !important;
-        position: absolute !important;
-    }
-    </style>
-    """
-    m.get_root().html.add_child(folium.Element(attribution_css))
-    
-    # Fit bounds to ensure all points are visible
-    m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], padding=(50, 50))
-    
-    # Add the title with clean styling
+    # Add the title
     title_html = f'''
-    <style>
-        .leaflet-container {{ 
-            margin-top: 0 !important; 
-            padding-top: 0 !important;
-        }}
-        .map-title {{ 
-            position: absolute; 
-            z-index: 999; 
-            left: 50%; 
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-        }}
-        
-        /* Remove any whitespace */
-        body, html {{
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden;
-        }}
-        
-        /* Make map container fill entire frame */
-        #map {{
-            height: 100vh !important;
-            width: 100vw !important;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }}
-    </style>
-    <div class="map-title"><b>{title}</b></div>
-    '''
+             <h3 align="center" style="font-size:16px; color: white;"><b>{title}</b></h3>
+             '''
     m.get_root().html.add_child(folium.Element(title_html))
     
-    # Determine which temperature column to use
-    temp_col = get_temp_column(data)
-    
-    # Set default colors if not provided
-    if dot_color is None:
-        dot_color = '#ff3300'  # Red-orange for default
-    if border_color is None:
-        border_color = 'white'
-    
-    # Create colormap for temperature if it exists
-    if temp_col and not (dot_color and border_color):
-        selected_palette = COLOR_PALETTES.get('inferno', COLOR_PALETTES['inferno'])
-        vmin = data[temp_col].min()
-        vmax = data[temp_col].max()
-        colormap = LinearColormap(
-            selected_palette,
-            vmin=vmin, 
-            vmax=vmax,
-            caption=f'Temperature (K)'
-        )
-        colormap.add_to(m)
-    
-    # Plot the points with temperature-based coloring if available
+    # Plot the points
     for idx, point in data.iterrows():
-        # Determine point color based on temperature or provided color
-        if temp_col and not pd.isna(point[temp_col]) and not dot_color:
-            fill_color = colormap(point[temp_col])
-        else:
-            fill_color = dot_color
-            
         folium.CircleMarker(
             location=[point['latitude'], point['longitude']],
             radius=6,
-            color=border_color,
+            color='white',
             weight=1.5,
             fill=True,
-            fill_color=fill_color,
+            fill_color='#ff3300',  # Red for visibility
             fill_opacity=0.9
         ).add_to(m)
     
-    # Save to HTML string with additional fixes for export
+    # Save to HTML string
     html_string = m._repr_html_()
-    
-    # Fix any remaining issues in the HTML that could cause whitespace
-    html_string = html_string.replace('<body>', '<body style="margin:0; padding:0; overflow:hidden;">')
-    
     return html_string

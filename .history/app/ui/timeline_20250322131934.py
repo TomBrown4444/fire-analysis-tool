@@ -456,7 +456,7 @@ def export_all_clusters_timeline(df, category, playback_dates, basemap_tiles, ba
 
 def create_gif_from_frames(frames, fps=2):
     """
-    Create a GIF from HTML frames with properly loaded satellite imagery and visible fire points.
+    Create a GIF from HTML frames with properly loaded satellite imagery.
     
     Args:
         frames (list): List of HTML frame strings
@@ -474,7 +474,7 @@ def create_gif_from_frames(frames, fps=2):
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.webdriver.common.by import By
         from webdriver_manager.chrome import ChromeDriverManager
-        from PIL import Image, ImageDraw
+        from PIL import Image
         import tempfile
         import os
         import time
@@ -486,10 +486,6 @@ def create_gif_from_frames(frames, fps=2):
         temp_dir = tempfile.mkdtemp()
         screenshot_paths = []
         
-        # Set up progress bar and status text
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
         # Set up Chrome with larger window size
         chrome_options = Options()
         chrome_options.add_argument("--headless")
@@ -497,98 +493,21 @@ def create_gif_from_frames(frames, fps=2):
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--window-size=1280,960")  # Larger window size
         
-        status_text.write("Setting up browser for image capture...")
+        st.info("Setting up browser for image capture...")
         driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=chrome_options
         )
         
-        # Extract zoom level from the original HTML if available
-        zoom_level = 10  # Default zoom if extraction fails
-        if frames and len(frames) > 0:
-            # Try to find zoom level in the HTML
-            zoom_pattern = r'\.setZoom\((\d+)\)'
-            alt_zoom_pattern = r'zoom[\'"]?\s*:\s*(\d+)'
-            
-            zoom_match = re.search(zoom_pattern, frames[0])
-            if zoom_match:
-                zoom_level = int(zoom_match.group(1))
-            else:
-                alt_match = re.search(alt_zoom_pattern, frames[0])
-                if alt_match:
-                    zoom_level = int(alt_match.group(1))
-        
-        # Extract bounds information from the original HTML
-        bounds = None
-        bounds_pattern = r'\.fitBounds\(\[\[([0-9.-]+),\s*([0-9.-]+)\],\s*\[([0-9.-]+),\s*([0-9.-]+)\]\]'
-        bounds_match = re.search(bounds_pattern, frames[0])
-        if bounds_match:
-            bounds = {
-                'min_lat': float(bounds_match.group(1)),
-                'min_lon': float(bounds_match.group(2)),
-                'max_lat': float(bounds_match.group(3)),
-                'max_lon': float(bounds_match.group(4))
-            }
-        
         # Process each frame
+        progress_bar = st.progress(0)
         for i, html_content in enumerate(frames):
-            status_text.write(f"Processing frame {i+1}/{len(frames)}")
+            st.write(f"Processing frame {i+1}/{len(frames)}")
             progress_bar.progress((i+1)/len(frames))
             
             # Extract the title to use in the static map
             title_match = re.search(r'<div class="map-title"><b>(.*?)</b></div>', html_content)
             title = title_match.group(1) if title_match else f"Fire Map - Frame {i+1}"
-            
-            # Extract latitude/longitude points from the original HTML
-            # Look for CircleMarker patterns in the HTML
-            lat_lon_pattern = r'location=\[\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\]'
-            matches = re.findall(lat_lon_pattern, html_content)
-            
-            # Check if we found any points
-            if not matches:
-                # Try an alternative pattern that might be in the HTML
-                lat_lon_pattern = r'\[\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\]'
-                matches = re.findall(lat_lon_pattern, html_content)
-                
-                # Filter out matches that aren't likely to be coordinates
-                matches = [(lat, lon) for lat, lon in matches 
-                          if -90 <= float(lat) <= 90 and -180 <= float(lon) <= 180]
-            
-            # Filter points to ensure they're within the current map bounds
-            if bounds:
-                filtered_matches = []
-                buffer = 1.0  # Allow a small buffer beyond the bounds
-                for lat, lon in matches:
-                    try:
-                        lat_f = float(lat)
-                        lon_f = float(lon)
-                        if (bounds['min_lat'] - buffer <= lat_f <= bounds['max_lat'] + buffer and 
-                            bounds['min_lon'] - buffer <= lon_f <= bounds['max_lon'] + buffer):
-                            filtered_matches.append((lat, lon))
-                    except ValueError:
-                        continue
-                matches = filtered_matches
-            
-            # Calculate center point and bounds for the map
-            if matches:
-                lats = [float(lat) for lat, _ in matches]
-                lons = [float(lon) for _, lon in matches]
-                center_lat = sum(lats) / len(lats)
-                center_lon = sum(lons) / len(lons)
-                point_bounds = {
-                    'min_lat': min(lats),
-                    'max_lat': max(lats),
-                    'min_lon': min(lons),
-                    'max_lon': max(lons)
-                }
-            elif bounds:
-                center_lat = (bounds['min_lat'] + bounds['max_lat']) / 2
-                center_lon = (bounds['min_lon'] + bounds['max_lon']) / 2
-                point_bounds = bounds
-            else:
-                center_lat = 34.0
-                center_lon = 65.0
-                point_bounds = {'min_lat': 33.0, 'max_lat': 35.0, 'min_lon': 64.0, 'max_lon': 66.0}
             
             # Create a static map HTML that will definitely load
             static_html = f"""
@@ -640,70 +559,60 @@ def create_gif_from_frames(frames, fps=2):
                 <div class="title-overlay">{title}</div>
                 
                 <script>
-                    // Create a map with satellite imagery
-                    const map = L.map('map', {{
-                        center: [{center_lat}, {center_lon}],
-                        zoom: {zoom_level},
-                        attributionControl: false
-                    }});
-                    
-                    // Add satellite layer
-                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}', {{
-                        attribution: 'Satellite Imagery'
-                    }}).addTo(map);
-                    
-                    // Add fire points as circle markers
-                    const pointGroup = L.featureGroup();
-                    
-                    // Fire point locations
+                    // Extract the fire points from the original HTML
                     const firePoints = [
             """
             
-            # Add each coordinate as a JavaScript array
-            for lat, lon in matches:
-                static_html += f"        [{lat}, {lon}],\n"
+            # Extract latitude/longitude points from the original HTML
+            # Look for CircleMarker patterns in the HTML
+            lat_lon_pattern = r'location=\[\s*([0-9.-]+)\s*,\s*([0-9.-]+)\s*\]'
+            matches = re.findall(lat_lon_pattern, html_content)
             
-            # If no points were found, add a dummy point to avoid JavaScript errors
-            if not matches:
-                static_html += f"        [{center_lat}, {center_lon}],  // Default point if none found\n"
+            # Add fire points to the static HTML
+            for lat, lon in matches:
+                static_html += f"        [parseFloat('{lat}'), parseFloat('{lon}')],\n"
             
             static_html += """
                     ];
                     
-                    // Add each point to the map
+                    // Create a map with satellite imagery
+                    const map = L.map('map', {
+                        center: [34.0, 65.0], // Default center (will be adjusted)
+                        zoom: 6,
+                        attributionControl: false
+                    });
+                    
+                    // Add satellite layer
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        attribution: 'Satellite Imagery'
+                    }).addTo(map);
+                    
+                    // Add fire points as circle markers
+                    const pointGroup = L.featureGroup();
+                    
                     firePoints.forEach(point => {
                         L.circleMarker(point, {
-                            radius: 8,  // Larger radius for better visibility
+                            radius: 6,
                             color: 'white',
-                            weight: 2,
+                            weight: 1.5,
                             fillColor: '#ff3300',
-                            fillOpacity: 1.0,  // Full opacity for better visibility
+                            fillOpacity: 0.9,
                         }).addTo(pointGroup);
                     });
                     
                     // Add the points to the map
                     pointGroup.addTo(map);
                     
-                    // Fit bounds to the defined bounds with padding
-            """
-            
-            # Add bounds fitting code
-            if bounds:
-                static_html += f"""
-                    map.fitBounds([
-                        [{point_bounds['min_lat']}, {point_bounds['min_lon']}],
-                        [{point_bounds['max_lat']}, {point_bounds['max_lon']}]
-                    ], {{padding: [50, 50]}});
-                """
-            
-            static_html += """
+                    // Fit bounds to see all points
+                    if (firePoints.length > 0) {
+                        map.fitBounds(pointGroup.getBounds(), {padding: [50, 50]});
+                    }
+                    
                     // Signal that map is ready after tiles load
                     map.whenReady(() => {
-                        // First wait for the map to be ready
                         setTimeout(() => {
-                            // Then wait even longer for tiles
                             document.body.classList.add('map-loaded');
-                        }, 5000); // Extra delay to ensure tiles load
+                        }, 3000); // Extra delay to ensure tiles load
                     });
                 </script>
             </body>
@@ -721,7 +630,7 @@ def create_gif_from_frames(frames, fps=2):
             # Wait for map to be fully loaded
             try:
                 # Wait longer to ensure tiles load
-                time.sleep(8)  # Increased wait time
+                time.sleep(6)
                 
                 # Ensure the map container exists and is visible
                 WebDriverWait(driver, 10).until(
@@ -731,46 +640,10 @@ def create_gif_from_frames(frames, fps=2):
                 # Take screenshot
                 screenshot_path = os.path.join(temp_dir, f"frame_{i}.png")
                 driver.save_screenshot(screenshot_path)
-                
-                # Process the screenshot to ensure fire points are visible
-                # This adds a backup solution in case the JavaScript markers don't render
-                image = Image.open(screenshot_path)
-                draw = ImageDraw.Draw(image)
-                
-                # Get image dimensions
-                img_width, img_height = image.size
-                
-                # Draw backup points directly on the image for redundancy
-                if matches and img_width > 100 and img_height > 100:
-                    # Adjusted function to convert geo coordinates to pixel coordinates
-                    def geo_to_pixel(lat, lon):
-                        # Calculate percentage position within the bounds
-                        x_percent = (float(lon) - point_bounds['min_lon']) / (point_bounds['max_lon'] - point_bounds['min_lon'])
-                        # For latitude, we need to invert the percentage since pixel y increases downward
-                        y_percent = 1.0 - (float(lat) - point_bounds['min_lat']) / (point_bounds['max_lat'] - point_bounds['min_lat'])
-                        
-                        # Apply padding (50 pixels)
-                        padding = 50
-                        x = padding + x_percent * (img_width - 2 * padding)
-                        y = padding + y_percent * (img_height - 2 * padding)
-                        
-                        return x, y
-                    
-                    # Draw each point as a circle
-                    for lat, lon in matches:
-                        x, y = geo_to_pixel(lat, lon)
-                        
-                        # Draw a filled circle with border
-                        radius = 8  # Larger radius for better visibility
-                        draw.ellipse((x-radius, y-radius, x+radius, y+radius), 
-                                     fill='#ff3300', outline='white')
-                
-                # Save the image with drawn points
-                image.save(screenshot_path)
-                
                 screenshot_paths.append(screenshot_path)
             except Exception as e:
-                # Silent error handling - continue trying to capture frames
+                st.warning(f"Issue with frame {i+1}: {str(e)}")
+                # Try to take screenshot anyway
                 screenshot_path = os.path.join(temp_dir, f"frame_{i}.png")
                 driver.save_screenshot(screenshot_path)
                 screenshot_paths.append(screenshot_path)
@@ -803,8 +676,6 @@ def create_gif_from_frames(frames, fps=2):
             except:
                 pass
         
-        status_text.empty()
-        progress_bar.empty()
         st.success("GIF created successfully!")
         
         return gif_buffer.getvalue()
@@ -812,350 +683,3 @@ def create_gif_from_frames(frames, fps=2):
     except Exception as e:
         st.error(f"Error creating GIF: {str(e)}")
         return None
-
-
-# CHANGE 2: Fix the export_single_cluster_timeline function
-
-def export_single_cluster_timeline(df, cluster_id, category, playback_dates, basemap_tiles, basemap):
-    """
-    Export timeline for a single cluster.
-    
-    Args:
-        df (pandas.DataFrame): DataFrame with fire data
-        cluster_id (int): Cluster ID to export
-        category (str): Category name (fires, flares, etc.)
-        playback_dates (list): List of dates to include in playback
-        basemap_tiles (dict): Dictionary mapping of basemap names to tile URLs
-        basemap (str): Selected basemap name
-    """
-    import streamlit as st
-    import time
-    from app.core.utils import get_category_display_name, get_category_singular
-    
-    # Get data for the selected cluster ONLY
-    cluster_data = df[df['cluster'] == cluster_id].copy()
-    
-    if cluster_data.empty:
-        st.warning(f"No data found for {get_category_singular(category)} cluster {cluster_id}.")
-        return
-    
-    # Group by date and count points
-    date_counts = cluster_data.groupby('acq_date').size()
-    dates_with_data = list(date_counts.index)
-    
-    # Check if we have at least 2 dates with data
-    if len(dates_with_data) <= 1:
-        st.warning(f"This {get_category_singular(category)} only has data for one date. Timeline export requires data on multiple dates.")
-        return
-    
-    # Set up progress bar
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    # Capture frames for each date
-    frames = []
-    total_dates = len(dates_with_data)
-    
-    # Custom colors for fire visualization
-    dot_color = '#ff3300'  # Red-orange fill
-    border_color = 'white'
-    
-    # Get coordinates for auto-zoom
-    lat_col = next((col for col in ['latitude', 'Latitude', 'lat', 'Lat'] if col in cluster_data.columns), None)
-    lon_col = next((col for col in ['longitude', 'Longitude', 'lon', 'Lon'] if col in cluster_data.columns), None)
-    
-    for i, date in enumerate(sorted(dates_with_data)):
-        status_text.write(f"Processing frame {i+1}/{total_dates}: {date}")
-        progress_bar.progress((i+1)/total_dates)
-        
-        # Create map for this date
-        playback_title = f"{get_category_display_name(category)} {cluster_id} - {date}"
-        
-        # Filter data for this date and cluster
-        date_data = cluster_data[cluster_data['acq_date'] == date].copy()
-        
-        if not date_data.empty:
-            # Create a simplified map for export
-            folium_map = create_export_map(
-                date_data, 
-                playback_title, 
-                basemap_tiles, 
-                'Satellite',  # Force satellite basemap for export
-                dot_color=dot_color,
-                border_color=border_color
-            )
-            frames.append(folium_map)
-    
-    status_text.write("Processing complete. Preparing download...")
-    
-    # Provide download option
-    if frames:
-        # Create download buffer
-        st.info(f"Timeline export ready for cluster {cluster_id}")
-        st.download_button(
-            label="Download as GIF",
-            data=create_gif_from_frames(frames),
-            file_name=f"{category}_{cluster_id}_timeline.gif",
-            mime="image/gif",
-            key="download_gif_single_btn",
-            use_container_width=True
-        )
-        progress_bar.empty()
-        status_text.empty()
-    else:
-        st.error("Failed to create timeline export - no frames were generated")
-        progress_bar.empty()
-        status_text.empty()
-
-def export_single_cluster_timeline(df, cluster_id, category, playback_dates, basemap_tiles, basemap):
-    """
-    Export timeline for a single cluster.
-    
-    Args:
-        df (pandas.DataFrame): DataFrame with fire data
-        cluster_id (int): Cluster ID to export
-        category (str): Category name (fires, flares, etc.)
-        playback_dates (list): List of dates to include in playback
-        basemap_tiles (dict): Dictionary mapping of basemap names to tile URLs
-        basemap (str): Selected basemap name
-    """
-    import streamlit as st
-    import time
-    import pandas as pd
-    from app.core.utils import get_category_display_name, get_category_singular
-    
-    # Get data for the selected cluster ONLY - with strict filtering
-    cluster_data = df[df['cluster'] == cluster_id].copy()
-    
-    # Debug the issue by printing the unique clusters in the filtered data
-    if 'cluster' in cluster_data.columns:
-        unique_clusters = cluster_data['cluster'].unique()
-        if len(unique_clusters) > 1 or (len(unique_clusters) == 1 and unique_clusters[0] != cluster_id):
-            # Something's wrong - force filtering again
-            cluster_data = cluster_data[cluster_data['cluster'] == cluster_id]
-    
-    if cluster_data.empty:
-        st.warning(f"No data found for {get_category_singular(category)} cluster {cluster_id}.")
-        return
-    
-    # Group by date and count points
-    if 'acq_date' not in cluster_data.columns:
-        date_col = next((col for col in ['date', 'Date', 'ACQ_DATE'] if col in cluster_data.columns), None)
-        if date_col:
-            cluster_data['acq_date'] = cluster_data[date_col]
-        else:
-            st.error("No date column found in data")
-            return
-    
-    date_counts = cluster_data.groupby('acq_date').size()
-    dates_with_data = list(date_counts.index)
-    
-    # Check if we have at least 2 dates with data
-    if len(dates_with_data) <= 1:
-        st.warning(f"This {get_category_singular(category)} only has data for one date. Timeline export requires data on multiple dates.")
-        return
-    
-    # Set up progress bar
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    # Capture frames for each date
-    frames = []
-    total_dates = len(dates_with_data)
-    
-    # Custom colors for fire visualization
-    dot_color = '#ff3300'  # Red-orange fill
-    border_color = 'white'
-    
-    # Get coordinates for auto-zoom
-    lat_col = next((col for col in ['latitude', 'Latitude', 'lat', 'Lat'] if col in cluster_data.columns), None)
-    lon_col = next((col for col in ['longitude', 'Longitude', 'lon', 'Lon'] if col in cluster_data.columns), None)
-    
-    for i, date in enumerate(sorted(dates_with_data)):
-        status_text.write(f"Processing frame {i+1}/{total_dates}: {date}")
-        progress_bar.progress((i+1)/total_dates)
-        
-        # Create map for this date
-        playback_title = f"{get_category_display_name(category)} {cluster_id} - {date}"
-        
-        # Filter data for this date and ONLY this cluster
-        date_data = cluster_data[cluster_data['acq_date'] == date].copy()
-        
-        # Double-check the filtering to ensure only this cluster is included
-        if 'cluster' in date_data.columns:
-            date_data = date_data[date_data['cluster'] == cluster_id]
-        
-        if not date_data.empty:
-            # Create a simplified map for export
-            folium_map = create_export_map(
-                date_data, 
-                playback_title, 
-                basemap_tiles, 
-                'Satellite',  # Force satellite basemap for export
-                dot_color=dot_color,
-                border_color=border_color
-            )
-            frames.append(folium_map)
-    
-    status_text.write("Processing complete. Preparing download...")
-    
-    # Provide download option
-    if frames:
-        # Create download buffer
-        st.info(f"Timeline export ready for cluster {cluster_id}")
-        st.download_button(
-            label="Download as GIF",
-            data=create_gif_from_frames(frames),
-            file_name=f"{category}_{cluster_id}_timeline.gif",
-            mime="image/gif",
-            key="download_gif_single_btn",
-            use_container_width=True
-        )
-        progress_bar.empty()
-        status_text.empty()
-    else:
-        st.error("Failed to create timeline export - no frames were generated")
-        progress_bar.empty()
-        status_text.empty()
-
-def create_export_map(data, title, basemap_tiles, basemap, dot_color='#ff3300', border_color='white', border_width=1.5, fixed_zoom=None):
-    """
-    Create a simplified map for export with static zoom and custom colors.
-    
-    Args:
-        data (pandas.DataFrame): DataFrame with fire data
-        title (str): Map title
-        basemap_tiles (dict): Dictionary of basemap tiles
-        basemap (str): Basemap name
-        dot_color (str): Color of the points
-        border_color (str): Color of the point borders
-        border_width (float): Width of the point borders
-        fixed_zoom (int, optional): Specific zoom level for the map
-        
-    Returns:
-        str: HTML string representation of the map
-    """
-    import pandas as pd
-    import folium
-    import streamlit as st
-    
-    if data.empty:
-        return None
-    
-    # Find coordinate columns
-    lat_col = next((col for col in ['latitude', 'Latitude', 'lat', 'Lat'] if col in data.columns), None)
-    lon_col = next((col for col in ['longitude', 'Longitude', 'lon', 'Lon'] if col in data.columns), None)
-    
-    if not lat_col or not lon_col:
-        st.error(f"Cannot find coordinate columns in {data.columns.tolist()}")
-        return None
-    
-    # Calculate center point of data
-    center_lat = (data[lat_col].min() + data[lat_col].max()) / 2
-    center_lon = (data[lon_col].min() + data[lon_col].max()) / 2
-    
-    # Calculate the bounding box for auto-zoom
-    min_lat = data[lat_col].min()
-    max_lat = data[lat_col].max()
-    min_lon = data[lon_col].min()
-    max_lon = data[lon_col].max()
-    
-    # Always use satellite by default for exports
-    initial_tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-    tile_attr = 'Satellite'
-    
-    # Create a map with satellite basemap
-    if fixed_zoom is None:
-        # Auto-determine zoom level based on the bounding box
-        m = folium.Map(
-            location=[center_lat, center_lon],
-            tiles=initial_tiles,
-            attr=tile_attr
-        )
-    else:
-        # Use the specified zoom level
-        m = folium.Map(
-            location=[center_lat, center_lon],
-            zoom_start=fixed_zoom,
-            tiles=initial_tiles,
-            attr=tile_attr
-        )
-    
-    # Add the actual required attribution in a more discreet way
-    attribution_css = """
-    <style>
-    .leaflet-control-attribution {
-        font-size: 8px !important;
-        background-color: rgba(0,0,0,0.5) !important;
-        color: #ddd !important;
-        padding: 0 5px !important;
-        bottom: 0 !important;
-        right: 0 !important;
-        position: absolute !important;
-    }
-    </style>
-    """
-    m.get_root().html.add_child(folium.Element(attribution_css))
-    
-    # Fit bounds to ensure all points are visible
-    m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], padding=(50, 50))
-    
-    # Add title with clean styling
-    title_html = f'''
-    <style>
-        .leaflet-container {{ 
-            margin-top: 0 !important; 
-            padding-top: 0 !important;
-        }}
-        .map-title {{ 
-            position: absolute; 
-            z-index: 999; 
-            left: 50%; 
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-        }}
-        
-        /* Remove any whitespace */
-        body, html {{
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden;
-        }}
-        
-        /* Make map container fill entire frame */
-        #map {{
-            height: 100vh !important;
-            width: 100vw !important;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }}
-    </style>
-    <div class="map-title"><b>{title}</b></div>
-    '''
-    m.get_root().html.add_child(folium.Element(title_html))
-    
-    # Add each point with custom colors
-    for idx, row in data.iterrows():
-        folium.CircleMarker(
-            location=[row[lat_col], row[lon_col]],
-            radius=6,
-            color=border_color,         # Border color
-            weight=border_width,        # Border width
-            fill=True,
-            fill_color=dot_color,       # Fill color
-            fill_opacity=0.9
-        ).add_to(m)
-    
-    # Save to HTML string with additional fixes for export
-    html_string = m._repr_html_()
-    
-    # Fix any remaining issues in the HTML that could cause whitespace
-    html_string = html_string.replace('<body>', '<body style="margin:0; padding:0; overflow:hidden;">')
-    
-    return html_string

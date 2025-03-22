@@ -12,6 +12,7 @@ import base64
 from io import BytesIO
 
 from app.core.utils import get_temp_column, get_category_display_name
+from app.config.settings import BASEMAP_TILES, COLOR_PALETTES
 
 def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=None, playback_mode=False, playback_date=None, dot_size_multiplier=1.0, color_palette='inferno', category="fires"):
     """
@@ -30,8 +31,6 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     Returns:
         folium.Map: Folium map object
     """
-    from app.config.settings import BASEMAP_TILES, COLOR_PALETTES
-    
     # Create a working copy of the dataframe
     plot_df = df.copy()
     
@@ -57,8 +56,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
         st.warning("No data to plot for the selected filters.")
         # Create an empty map with default center if no data
         m = folium.Map(location=[34.0, 65.0], zoom_start=4, control_scale=True, 
-                      tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                      attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community')
+                      tiles='Satellite')
         
         # Add information about why map is empty
         empty_info = """
@@ -96,27 +94,10 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     
     # Set the initial tiles to satellite
     initial_tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-    tile_attr = 'Default Satellite Basemap'  # Simplified display name
     
-    # Create the map with simplified attribution
+    # Create the map
     m = folium.Map(location=[center_lat, center_lon], control_scale=True, 
-                  tiles=initial_tiles, attr=tile_attr)
-                  
-    # Add the actual required attribution in a more discreet way
-    attribution_css = """
-    <style>
-    .leaflet-control-attribution {
-        font-size: 8px !important;
-        background-color: rgba(0,0,0,0.5) !important;
-        color: #ddd !important;
-        padding: 0 5px !important;
-        bottom: 0 !important;
-        right: 0 !important;
-        position: absolute !important;
-    }
-    </style>
-    """
-    m.get_root().html.add_child(folium.Element(attribution_css))
+                  tiles=initial_tiles, attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community')
     
     Fullscreen().add_to(m)
     
@@ -259,7 +240,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                         border: none; 
                         border-radius: 5px; 
                         cursor: pointer;">
-                    Please select {point['cluster']} from the drop-down menu below
+                    This is {point['cluster']}. Please select it from the drop down menu.
                 </button>
             </div>
             """
@@ -319,14 +300,24 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     select_cluster_script = """
     <script>
     function selectCluster(clusterId) {
-        // Update URL parameters
-        const url = new URL(window.parent.location);
-        url.searchParams.set('selected_cluster', clusterId);
-        window.parent.history.pushState({}, '', url);
+        // Create or update the hidden input field
+        let input = document.getElementById('selected-cluster-input');
+        if (!input) {
+            input = document.createElement('input');
+            input.id = 'selected-cluster-input';
+            input.type = 'hidden';
+            document.body.appendChild(input);
+        }
+        input.value = clusterId;
         
         // Dispatch a custom event that Streamlit can listen for
         const event = new CustomEvent('cluster_selected', { detail: { cluster: clusterId } });
         window.parent.document.dispatchEvent(event);
+        
+        // If using URL parameters, update the URL
+        const url = new URL(window.parent.location);
+        url.searchParams.set('selected_cluster', clusterId);
+        window.parent.history.pushState({}, '', url);
         
         // Reload the page to apply the selection
         window.parent.location.reload();
@@ -350,7 +341,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
         <b>Interaction:</b><br>
         • Hover over points to see details<br>
         • Click points to view full information<br>
-        • Select a cluster to view timeline<br>
+        • Use the dropdown menu on the right to select clusters<br>
         • Zoom with +/- or mouse wheel<br>
         • Change base maps with layer control (top right)
     </div>
@@ -364,7 +355,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                     top: 10px; 
                     right: 10px; 
                     z-index: 9999;">
-            <button id="export_map_button" 
+            <button onclick="exportMap()" 
                     style="background-color: #4CAF50; 
                           color: white; 
                           padding: 10px 20px; 
@@ -374,22 +365,20 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
             </button>
         </div>
         <script>
-        document.getElementById('export_map_button').addEventListener('click', function() {
-            // Trigger the export timeline function
-            const exportButtons = Array.from(window.parent.document.querySelectorAll('button'));
-            const exportButton = exportButtons.find(btn => btn.innerText === 'Export Timeline');
-            if (exportButton) {
-                exportButton.click();
-            }
-        });
+        function exportMap() {
+            // Trigger the export_all_clusters_timeline function
+            const event = new CustomEvent('export_map', { 
+                detail: { cluster: """ + str(selected_cluster) + """ } 
+            });
+            window.parent.document.dispatchEvent(event);
+        }
         </script>
         """
         m.get_root().html.add_child(folium.Element(export_button))
     
     return m
 
-
-def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_level=None, dot_color=None, border_color=None):
+def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_level=None):
     """
     Create a simplified map for export.
     
@@ -399,13 +388,11 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
         basemap_tiles (dict): Dictionary of basemap tiles
         basemap (str): Basemap name
         zoom_level (int, optional): Specific zoom level to use
-        dot_color (str, optional): Color for dots if not using temperature-based coloring
-        border_color (str, optional): Border color for dots
         
     Returns:
         str: HTML string representation of the map
     """
-    from app.config.settings import COLOR_PALETTES
+    import pandas as pd
     
     if data.empty:
         return None
@@ -420,12 +407,12 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
     center_lat = (min_lat + max_lat) / 2
     center_lon = (min_lon + max_lon) / 2
     
-    # Always use satellite basemap for exports by default
+    # Set the initial tiles to satellite by default
     initial_tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-    tile_attr = 'Satellite Basemap'
+    tile_attr = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
     
-    # If user specifically selected a different basemap, honor that choice
-    if basemap != 'Satellite' and basemap in basemap_tiles:
+    # If basemap is specified and in basemap_tiles, use that instead
+    if basemap in basemap_tiles:
         initial_tiles = basemap_tiles[basemap]
     
     # Create the map with a default zoom level if not specified
@@ -436,22 +423,6 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
                   zoom_start=zoom_level,
                   tiles=initial_tiles,
                   attr=tile_attr)
-    
-    # Add the actual required attribution in a more discreet way
-    attribution_css = """
-    <style>
-    .leaflet-control-attribution {
-        font-size: 8px !important;
-        background-color: rgba(0,0,0,0.5) !important;
-        color: #ddd !important;
-        padding: 0 5px !important;
-        bottom: 0 !important;
-        right: 0 !important;
-        position: absolute !important;
-    }
-    </style>
-    """
-    m.get_root().html.add_child(folium.Element(attribution_css))
     
     # Fit bounds to ensure all points are visible
     m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], padding=(50, 50))
@@ -474,23 +445,6 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
             border-radius: 5px;
             margin-top: 10px;
         }}
-        
-        /* Remove any whitespace */
-        body, html {{
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden;
-        }}
-        
-        /* Make map container fill entire frame */
-        #map {{
-            height: 100vh !important;
-            width: 100vw !important;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }}
     </style>
     <div class="map-title"><b>{title}</b></div>
     '''
@@ -499,14 +453,8 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
     # Determine which temperature column to use
     temp_col = get_temp_column(data)
     
-    # Set default colors if not provided
-    if dot_color is None:
-        dot_color = '#ff3300'  # Red-orange for default
-    if border_color is None:
-        border_color = 'white'
-    
     # Create colormap for temperature if it exists
-    if temp_col and not (dot_color and border_color):
+    if temp_col:
         selected_palette = COLOR_PALETTES.get('inferno', COLOR_PALETTES['inferno'])
         vmin = data[temp_col].min()
         vmax = data[temp_col].max()
@@ -520,26 +468,71 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
     
     # Plot the points with temperature-based coloring if available
     for idx, point in data.iterrows():
-        # Determine point color based on temperature or provided color
-        if temp_col and not pd.isna(point[temp_col]) and not dot_color:
-            fill_color = colormap(point[temp_col])
+        if temp_col and not pd.isna(point[temp_col]):
+            color = colormap(point[temp_col])
         else:
-            fill_color = dot_color
+            color = '#ff3300'  # Red for visibility
             
         folium.CircleMarker(
             location=[point['latitude'], point['longitude']],
             radius=6,
-            color=border_color,
+            color='white',
             weight=1.5,
             fill=True,
-            fill_color=fill_color,
+            fill_color=color,
             fill_opacity=0.9
         ).add_to(m)
     
-    # Save to HTML string with additional fixes for export
+    # Save to HTML string
     html_string = m._repr_html_()
-    
-    # Fix any remaining issues in the HTML that could cause whitespace
-    html_string = html_string.replace('<body>', '<body style="margin:0; padding:0; overflow:hidden;">')
-    
     return html_string
+
+def download_map_as_html(m, filename="fire_detection_map.html"):
+    """
+    Generate a download link for a folium map
+    
+    Args:
+        m (folium.Map): Folium map object
+        filename (str): Default filename for downloaded file
+        
+    Returns:
+        str: HTML anchor tag with the download link
+    """
+    html = m._repr_html_()
+    b64 = base64.b64encode(html.encode("utf-8")).decode("utf-8")
+    href = f'<a href="data:text/html;base64,{b64}" download="{filename}">Download Map</a>'
+    return href
+
+def add_export_button_to_streamlit(map_data, selected_cluster):
+    """
+    Add export functionality to Streamlit interface
+    
+    Args:
+        map_data (pandas.DataFrame): DataFrame with fire data for the selected cluster
+        selected_cluster (int): Selected cluster ID
+    """
+    if selected_cluster is not None and not map_data.empty:
+        st.markdown("### Export Options")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button():
+                # Generate map HTML for export
+                map_title = f"Fire Cluster {selected_cluster}"
+                html_string = create_export_map(
+                    map_data, 
+                    map_title, 
+                    BASEMAP_TILES, 
+                    basemap='Satellite'
+                )
+                
+                # Create download link
+                b64 = base64.b64encode(html_string.encode("utf-8")).decode("utf-8")
+                href = f'<a href="data:text/html;base64,{b64}" download="fire_cluster_{selected_cluster}.html">Download Map</a>'
+                st.markdown(href, unsafe_allow_html=True)
+        
+        with col2:
+            if st.button("Export All Clusters Timeline"):
+                # Trigger function to export all clusters timeline
+                st.session_state['trigger_export_all_clusters'] = True

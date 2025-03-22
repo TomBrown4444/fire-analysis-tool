@@ -96,27 +96,11 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     
     # Set the initial tiles to satellite
     initial_tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-    tile_attr = 'Default Satellite Basemap'  # Simplified display name
+    tile_attr = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
     
-    # Create the map with simplified attribution
+    # Create the map
     m = folium.Map(location=[center_lat, center_lon], control_scale=True, 
                   tiles=initial_tiles, attr=tile_attr)
-                  
-    # Add the actual required attribution in a more discreet way
-    attribution_css = """
-    <style>
-    .leaflet-control-attribution {
-        font-size: 8px !important;
-        background-color: rgba(0,0,0,0.5) !important;
-        color: #ddd !important;
-        padding: 0 5px !important;
-        bottom: 0 !important;
-        right: 0 !important;
-        position: absolute !important;
-    }
-    </style>
-    """
-    m.get_root().html.add_child(folium.Element(attribution_css))
     
     Fullscreen().add_to(m)
     
@@ -259,7 +243,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                         border: none; 
                         border-radius: 5px; 
                         cursor: pointer;">
-                    Please select {point['cluster']} from the drop-down menu below
+                    Select Cluster {point['cluster']}
                 </button>
             </div>
             """
@@ -371,6 +355,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                           border: none; 
                           border-radius: 5px; 
                           cursor: pointer;">
+                Export Map
             </button>
         </div>
         <script>
@@ -389,7 +374,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     return m
 
 
-def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_level=None, dot_color=None, border_color=None):
+def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_level=None):
     """
     Create a simplified map for export.
     
@@ -399,8 +384,6 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
         basemap_tiles (dict): Dictionary of basemap tiles
         basemap (str): Basemap name
         zoom_level (int, optional): Specific zoom level to use
-        dot_color (str, optional): Color for dots if not using temperature-based coloring
-        border_color (str, optional): Border color for dots
         
     Returns:
         str: HTML string representation of the map
@@ -420,12 +403,12 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
     center_lat = (min_lat + max_lat) / 2
     center_lon = (min_lon + max_lon) / 2
     
-    # Always use satellite basemap for exports by default
+    # Set the initial tiles to satellite by default
     initial_tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-    tile_attr = 'Satellite Basemap'
+    tile_attr = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
     
-    # If user specifically selected a different basemap, honor that choice
-    if basemap != 'Satellite' and basemap in basemap_tiles:
+    # If basemap is specified and in basemap_tiles, use that instead
+    if basemap in basemap_tiles:
         initial_tiles = basemap_tiles[basemap]
     
     # Create the map with a default zoom level if not specified
@@ -436,22 +419,6 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
                   zoom_start=zoom_level,
                   tiles=initial_tiles,
                   attr=tile_attr)
-    
-    # Add the actual required attribution in a more discreet way
-    attribution_css = """
-    <style>
-    .leaflet-control-attribution {
-        font-size: 8px !important;
-        background-color: rgba(0,0,0,0.5) !important;
-        color: #ddd !important;
-        padding: 0 5px !important;
-        bottom: 0 !important;
-        right: 0 !important;
-        position: absolute !important;
-    }
-    </style>
-    """
-    m.get_root().html.add_child(folium.Element(attribution_css))
     
     # Fit bounds to ensure all points are visible
     m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], padding=(50, 50))
@@ -474,23 +441,6 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
             border-radius: 5px;
             margin-top: 10px;
         }}
-        
-        /* Remove any whitespace */
-        body, html {{
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden;
-        }}
-        
-        /* Make map container fill entire frame */
-        #map {{
-            height: 100vh !important;
-            width: 100vw !important;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }}
     </style>
     <div class="map-title"><b>{title}</b></div>
     '''
@@ -499,14 +449,8 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
     # Determine which temperature column to use
     temp_col = get_temp_column(data)
     
-    # Set default colors if not provided
-    if dot_color is None:
-        dot_color = '#ff3300'  # Red-orange for default
-    if border_color is None:
-        border_color = 'white'
-    
     # Create colormap for temperature if it exists
-    if temp_col and not (dot_color and border_color):
+    if temp_col:
         selected_palette = COLOR_PALETTES.get('inferno', COLOR_PALETTES['inferno'])
         vmin = data[temp_col].min()
         vmax = data[temp_col].max()
@@ -520,26 +464,21 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
     
     # Plot the points with temperature-based coloring if available
     for idx, point in data.iterrows():
-        # Determine point color based on temperature or provided color
-        if temp_col and not pd.isna(point[temp_col]) and not dot_color:
-            fill_color = colormap(point[temp_col])
+        if temp_col and not pd.isna(point[temp_col]):
+            color = colormap(point[temp_col])
         else:
-            fill_color = dot_color
+            color = '#ff3300'  # Red for visibility
             
         folium.CircleMarker(
             location=[point['latitude'], point['longitude']],
             radius=6,
-            color=border_color,
+            color='white',
             weight=1.5,
             fill=True,
-            fill_color=fill_color,
+            fill_color=color,
             fill_opacity=0.9
         ).add_to(m)
     
-    # Save to HTML string with additional fixes for export
+    # Save to HTML string
     html_string = m._repr_html_()
-    
-    # Fix any remaining issues in the HTML that could cause whitespace
-    html_string = html_string.replace('<body>', '<body style="margin:0; padding:0; overflow:hidden;">')
-    
     return html_string

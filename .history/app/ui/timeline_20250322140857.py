@@ -907,13 +907,15 @@ def export_single_cluster_timeline(df, cluster_id, category, playback_dates, bas
         progress_bar.empty()
         status_text.empty()
 
-def export_single_cluster_timeline(df, cluster_id, category, playback_dates, basemap_tiles, basemap):
+
+# CHANGE 3: Fix the export_all_clusters_timeline function
+
+def export_all_clusters_timeline(df, category, playback_dates, basemap_tiles, basemap):
     """
-    Export timeline for a single cluster.
+    Export timeline showing all clusters over time.
     
     Args:
         df (pandas.DataFrame): DataFrame with fire data
-        cluster_id (int): Cluster ID to export
         category (str): Category name (fires, flares, etc.)
         playback_dates (list): List of dates to include in playback
         basemap_tiles (dict): Dictionary mapping of basemap names to tile URLs
@@ -921,38 +923,33 @@ def export_single_cluster_timeline(df, cluster_id, category, playback_dates, bas
     """
     import streamlit as st
     import time
-    import pandas as pd
     from app.core.utils import get_category_display_name, get_category_singular
+    from app.ui.map import create_export_map
     
-    # Get data for the selected cluster ONLY - with strict filtering
-    cluster_data = df[df['cluster'] == cluster_id].copy()
+    # Filter out noise points
+    valid_data = df[df['cluster'] >= 0].copy()
     
-    # Debug the issue by printing the unique clusters in the filtered data
-    if 'cluster' in cluster_data.columns:
-        unique_clusters = cluster_data['cluster'].unique()
-        if len(unique_clusters) > 1 or (len(unique_clusters) == 1 and unique_clusters[0] != cluster_id):
-            # Something's wrong - force filtering again
-            cluster_data = cluster_data[cluster_data['cluster'] == cluster_id]
-    
-    if cluster_data.empty:
-        st.warning(f"No data found for {get_category_singular(category)} cluster {cluster_id}.")
+    if valid_data.empty:
+        st.warning("No valid clusters found to export.")
         return
     
-    # Group by date and count points
-    if 'acq_date' not in cluster_data.columns:
-        date_col = next((col for col in ['date', 'Date', 'ACQ_DATE'] if col in cluster_data.columns), None)
-        if date_col:
-            cluster_data['acq_date'] = cluster_data[date_col]
-        else:
-            st.error("No date column found in data")
-            return
+    # Identify the correct date column 
+    date_col = None
+    for possible_name in ['acq_date', 'date', 'Date', 'ACQ_DATE']:
+        if possible_name in valid_data.columns:
+            date_col = possible_name
+            break
     
-    date_counts = cluster_data.groupby('acq_date').size()
-    dates_with_data = list(date_counts.index)
+    if not date_col:
+        st.error("❌ No date column found in data")
+        return
+        
+    # Get all unique dates
+    dates_with_data = sorted(valid_data[date_col].unique())
     
     # Check if we have at least 2 dates with data
     if len(dates_with_data) <= 1:
-        st.warning(f"This {get_category_singular(category)} only has data for one date. Timeline export requires data on multiple dates.")
+        st.warning(f"Data only spans one date. Timeline export requires data on multiple dates.")
         return
     
     # Set up progress bar
@@ -967,31 +964,26 @@ def export_single_cluster_timeline(df, cluster_id, category, playback_dates, bas
     dot_color = '#ff3300'  # Red-orange fill
     border_color = 'white'
     
-    # Get coordinates for auto-zoom
-    lat_col = next((col for col in ['latitude', 'Latitude', 'lat', 'Lat'] if col in cluster_data.columns), None)
-    lon_col = next((col for col in ['longitude', 'Longitude', 'lon', 'Lon'] if col in cluster_data.columns), None)
+    # Force the basemap to Satellite for export
+    basemap = 'Satellite'
     
-    for i, date in enumerate(sorted(dates_with_data)):
+    for i, date in enumerate(dates_with_data):
         status_text.write(f"Processing frame {i+1}/{total_dates}: {date}")
         progress_bar.progress((i+1)/total_dates)
         
         # Create map for this date
-        playback_title = f"{get_category_display_name(category)} {cluster_id} - {date}"
+        playback_title = f"All {get_category_display_name(category)}s - {date}"
         
-        # Filter data for this date and ONLY this cluster
-        date_data = cluster_data[cluster_data['acq_date'] == date].copy()
-        
-        # Double-check the filtering to ensure only this cluster is included
-        if 'cluster' in date_data.columns:
-            date_data = date_data[date_data['cluster'] == cluster_id]
+        # Filter data for this date across all clusters
+        date_data = valid_data[valid_data[date_col] == date].copy()
         
         if not date_data.empty:
-            # Create a simplified map for export
+            # Create a simplified map for export using the satellite basemap
             folium_map = create_export_map(
                 date_data, 
                 playback_title, 
                 basemap_tiles, 
-                'Satellite',  # Force satellite basemap for export
+                basemap,
                 dot_color=dot_color,
                 border_color=border_color
             )
@@ -1002,13 +994,13 @@ def export_single_cluster_timeline(df, cluster_id, category, playback_dates, bas
     # Provide download option
     if frames:
         # Create download buffer
-        st.info(f"Timeline export ready for cluster {cluster_id}")
+        st.info(f"Timeline export ready for all clusters")
         st.download_button(
             label="Download as GIF",
             data=create_gif_from_frames(frames),
-            file_name=f"{category}_{cluster_id}_timeline.gif",
+            file_name=f"{category}_all_clusters_timeline.gif",
             mime="image/gif",
-            key="download_gif_single_btn",
+            key="download_gif_all_btn",
             use_container_width=True
         )
         progress_bar.empty()
@@ -1017,6 +1009,9 @@ def export_single_cluster_timeline(df, cluster_id, category, playback_dates, bas
         st.error("Failed to create timeline export - no frames were generated")
         progress_bar.empty()
         status_text.empty()
+
+
+# CHANGE 4: Update create_export_map function to ensure consistent zooming
 
 def create_export_map(data, title, basemap_tiles, basemap, dot_color='#ff3300', border_color='white', border_width=1.5, fixed_zoom=None):
     """

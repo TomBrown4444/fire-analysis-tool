@@ -371,6 +371,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                           border: none; 
                           border-radius: 5px; 
                           cursor: pointer;">
+                Export Map
             </button>
         </div>
         <script>

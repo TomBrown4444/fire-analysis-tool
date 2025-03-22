@@ -301,18 +301,6 @@ def main():
                     html_map = folium_map._repr_html_()
                     components.html(html_map, height=550, width=985)
                     
-                    if st.session_state.get('selected_cluster') is not None:
-                        if st.button("← Exit Cluster Selection", 
-                                    type="primary", 
-                                    key="exit_cluster_btn",
-                                    use_container_width=True):
-                            # Clear the selected cluster
-                            st.session_state.selected_cluster = None
-                            # Reset playback mode
-                            st.session_state.playback_mode = False
-                            # Rerun to refresh the UI
-                            st.rerun()
-                    
                     # If a cluster is selected, show timeline options
                     if st.session_state.get('selected_cluster') is not None:
                         # Check if this cluster has data for multiple dates

@@ -301,18 +301,6 @@ def main():
                     html_map = folium_map._repr_html_()
                     components.html(html_map, height=550, width=985)
                     
-                    if st.session_state.get('selected_cluster') is not None:
-                        if st.button("← Exit Cluster Selection", 
-                                    type="primary", 
-                                    key="exit_cluster_btn",
-                                    use_container_width=True):
-                            # Clear the selected cluster
-                            st.session_state.selected_cluster = None
-                            # Reset playback mode
-                            st.session_state.playback_mode = False
-                            # Rerun to refresh the UI
-                            st.rerun()
-                    
                     # If a cluster is selected, show timeline options
                     if st.session_state.get('selected_cluster') is not None:
                         # Check if this cluster has data for multiple dates
@@ -455,23 +443,6 @@ def main():
             
         # Add the script to move content
         st.components.v1.html(move_content_to_sidebar_js(), height=0)
-        
-        exit_cluster_js = """
-        <script>
-        // Listen for the exit_cluster_selection event from the folium map
-        document.addEventListener('exit_cluster_selection', function(e) {
-            // Clear selected cluster in session state
-            if (window.parent._stateManagementFunctions && 
-                window.parent._stateManagementFunctions.setSessionState) {
-                window.parent._stateManagementFunctions.setSessionState({
-                    selected_cluster: null, 
-                    playback_mode: false
-                });
-            }
-        });
-        </script>
-        """
-        st.components.v1.html(exit_cluster_js, height=0)
 
 if __name__ == "__main__":
     main()

@@ -1,19 +1,17 @@
 """
 FIRMS API handler for the Fire Investigation Tool.
-Provides functionality to fetch and process fire data from NASA's FIRMS API
-with support for historical data, large country handling, and advanced clustering.
+Provides functionality to fetch and process fire data from NASA's FIRMS API.
 """
 import pandas as pd
 import requests
 import streamlit as st
 from io import StringIO
-from datetime import datetime, date, timedelta
-import time
+from datetime import datetime, timedelta
 
 from app.core.osm_handler import OSMHandler
 
 class FIRMSHandler:
-    """Handler for FIRMS API interactions with enhanced functionality"""
+    """Handler for FIRMS API interactions"""
     
     def __init__(self, username, password, api_key):
         self.username = username
@@ -44,21 +42,23 @@ class FIRMSHandler:
         
         Args:
             df (pandas.DataFrame): DataFrame to cluster
-            eps (float): DBSCAN epsilon parameter (spatial distance threshold)
-            min_samples (int): DBSCAN min_samples parameter (minimum points to form cluster)
-            bbox (str): Optional bounding box string for additional filtering
+            eps (float): DBSCAN epsilon parameter
+            min_samples (int): DBSCAN min_samples parameter
+            bbox (str): Optional bounding box string
             max_time_diff_days (int): Maximum days between events to be considered same cluster
             
         Returns:
             pandas.DataFrame: DataFrame with cluster labels
         """
-        from sklearn.cluster import DBSCAN
+        from sklearn.cluster import DBSCAN, OPTICS
+        # Import hdbscan if available (not used by default)
+        try:
+            import hdbscan
+        except ImportError:
+            pass
         
-        # Early exit if not enough points
         if len(df) < min_samples:
             st.warning(f"Too few points ({len(df)}) for clustering. Minimum required: {min_samples}")
-            # Add cluster label column filled with noise indicator (-1)
-            df['cluster'] = -1
             return df
         
         # First filter the data by bounding box if provided
@@ -143,42 +143,9 @@ class FIRMSHandler:
         eps=0.01,
         min_samples=5,
         chunk_days=7,  # Default chunk size
-        max_time_diff_days=5  # Maximum days gap to consider as same fire
+        max_time_diff_days=5  # Maximum days gap to consider as same fire (default: 5 days)
     ):
-        """
-        Fetch and process fire data from FIRMS API with support for historical data.
-        
-        Args:
-            country (str): Country name
-            bbox (str): Bounding box string "min_lon,min_lat,max_lon,max_lat"
-            dataset (str): FIRMS dataset name (e.g., 'VIIRS_NOAA20_NRT')
-            start_date (datetime/date/str): Start date for data
-            end_date (datetime/date/str): End date for data
-            category (str): Data category ('fires', 'flares', 'volcanoes', 'raw data')
-            use_clustering (bool): Whether to apply clustering
-            eps (float): DBSCAN epsilon parameter (spatial distance threshold)
-            min_samples (int): DBSCAN min_samples parameter (minimum points to form cluster)
-            chunk_days (int): Number of days to fetch in each API call
-            max_time_diff_days (int): Maximum days between events to be considered same cluster
-            
-        Returns:
-            pandas.DataFrame: Processed fire data with cluster labels
-        """
-        # Import dataset availability info from settings
-        try:
-            from app.config.settings import DATASET_AVAILABILITY
-        except ImportError:
-            # Fallback if not available in settings
-            DATASET_AVAILABILITY = {
-                'MODIS_NRT': {'min_date': '2024-12-01', 'max_date': '2025-03-17'},
-                'MODIS_SP': {'min_date': '2000-11-01', 'max_date': '2024-11-30'},
-                'VIIRS_NOAA20_NRT': {'min_date': '2024-12-01', 'max_date': '2025-03-17'},
-                'VIIRS_NOAA20_SP': {'min_date': '2018-04-01', 'max_date': '2024-11-30'},
-                'VIIRS_NOAA21_NRT': {'min_date': '2024-01-17', 'max_date': '2025-03-17'},
-                'VIIRS_SNPP_NRT': {'min_date': '2025-01-01', 'max_date': '2025-03-17'},
-                'VIIRS_SNPP_SP': {'min_date': '2012-01-20', 'max_date': '2024-12-31'},
-                'LANDSAT_NRT': {'min_date': '2022-06-20', 'max_date': '2025-03-17'}
-            }
+        """Fetch and process fire data from FIRMS API with support for historical data"""
         
         # Determine if we need historical data
         today = datetime.now().date()
@@ -206,15 +173,26 @@ class FIRMSHandler:
             dataset = dataset.replace("_NRT", "_SP")
             st.info(f"Fetching historical data using {dataset} dataset")
         
-        # Check dataset validity
-        if dataset not in DATASET_AVAILABILITY:
+        # Dataset availability dates
+        dataset_availability = {
+            'MODIS_NRT': {'min_date': '2024-12-01', 'max_date': '2025-03-17'},
+            'MODIS_SP': {'min_date': '2000-11-01', 'max_date': '2024-11-30'},
+            'VIIRS_NOAA20_NRT': {'min_date': '2024-12-01', 'max_date': '2025-03-17'},
+            'VIIRS_NOAA20_SP': {'min_date': '2018-04-01', 'max_date': '2024-11-30'},
+            'VIIRS_NOAA21_NRT': {'min_date': '2024-01-17', 'max_date': '2025-03-17'},
+            'VIIRS_SNPP_NRT': {'min_date': '2025-01-01', 'max_date': '2025-03-17'},
+            'VIIRS_SNPP_SP': {'min_date': '2012-01-20', 'max_date': '2024-12-31'},
+            'LANDSAT_NRT': {'min_date': '2022-06-20', 'max_date': '2025-03-17'}
+        }
+        
+        if dataset not in dataset_availability:
             st.error(f"Invalid dataset: {dataset}. Please select a valid dataset.")
             return None
         
         # Check if the requested date range is available for this dataset
-        if dataset in DATASET_AVAILABILITY:
-            min_date = datetime.strptime(DATASET_AVAILABILITY[dataset]['min_date'], '%Y-%m-%d').date()
-            max_date = datetime.strptime(DATASET_AVAILABILITY[dataset]['max_date'], '%Y-%m-%d').date()
+        if dataset in dataset_availability:
+            min_date = datetime.strptime(dataset_availability[dataset]['min_date'], '%Y-%m-%d').date()
+            max_date = datetime.strptime(dataset_availability[dataset]['max_date'], '%Y-%m-%d').date()
             
             if start_date_date < min_date:
                 st.warning(f"Start date {start_date_date} is before the earliest available date ({min_date}) for {dataset}. Using earliest available date.")
@@ -243,18 +221,18 @@ class FIRMSHandler:
                 end_date_date = today
         
         # Ensure end date doesn't exceed dataset's max date
-        if dataset in DATASET_AVAILABILITY:
-            max_date = datetime.strptime(DATASET_AVAILABILITY[dataset]['max_date'], '%Y-%m-%d').date()
+        if dataset in dataset_availability:
+            max_date = datetime.strptime(dataset_availability[dataset]['max_date'], '%Y-%m-%d').date()
             if end_date_date > max_date:
                 st.warning(f"End date {end_date_date} is after the latest available date ({max_date}) for {dataset}. Using latest available date.")
                 end_date_date = max_date
         
         end_date_str = end_date_date.strftime('%Y-%m-%d')
         
-        # Now we need to fetch data in chunks, respecting the API limits
-        st.write(f"Fetching fire data from {start_date_str} to {end_date_str} for {country or 'selected region'}...")
+        # Now we need to fetch data in chunks, respecting the 10-day limit
+        st.write(f"Fetching fire data from {start_date_str} to {end_date_str} for {country}...")
         
-        # Create date chunks
+        # Create date chunks of 10 days or less
         date_chunks = []
         current_date = start_date_date
         while current_date <= end_date_date:
@@ -366,7 +344,7 @@ class FIRMSHandler:
                 # For other large countries, use standard approach with longer timeout
                 self.session.timeout = 120  # Increase timeout to 2 minutes
                 
-                # Standard chunked processing for other large countries
+                # Standard chunked processing for other countries
                 for i, (chunk_start, chunk_end) in enumerate(date_chunks):
                     chunk_start_str = chunk_start.strftime('%Y-%m-%d')
                     chunk_end_str = chunk_end.strftime('%Y-%m-%d')
@@ -458,7 +436,7 @@ class FIRMSHandler:
         
         # Check if we got any data
         if all_results.empty:
-            st.warning(f"No records found for {category} in {country or 'selected region'} for the selected date range")
+            st.warning(f"No records found for {category} in {country} for the selected date range")
             return None
         
         st.success(f"Successfully fetched {len(all_results)} records from FIRMS API")
@@ -482,34 +460,28 @@ class FIRMSHandler:
                 st.info(f"Filtered data to {len(filtered_df)} points within the selected country boundaries.")
                 
                 if len(filtered_df) == 0:
-                    st.warning(f"No points found within the specified bounding box for {country or 'selected region'}.")
+                    st.warning(f"No points found within the specified bounding box for {country}.")
                     return None
                 
                 all_results = filtered_df
         
         # Apply clustering to the results if needed
         if use_clustering and not all_results.empty:
-            all_results = self._apply_dbscan(all_results, eps=eps, min_samples=min_samples, 
-                                            bbox=bbox, max_time_diff_days=max_time_diff_days)
+            all_results = self._apply_dbscan(all_results, eps=eps, min_samples=min_samples, bbox=bbox, max_time_diff_days=max_time_diff_days)
         
         # Apply spatial joins for specific categories
-        try:
-            # Check if we have geographic dependencies installed
-            HAVE_GEO_DEPS = True
-            if category in ['flares', 'volcanoes'] and HAVE_GEO_DEPS and not all_results.empty:
-                with st.spinner(f'Performing spatial join with OSM {category} data...'):
-                    original_count = len(all_results)
-                    all_results = self.osm_handler.spatial_join(all_results, category, bbox)
-                    
-                    # If spatial join found no matches
-                    if all_results.empty:
-                        # Create a container for the message
-                        message_container = st.empty()
-                        message_container.warning(f"No {category} found within the selected area and date range. Try a different location or category.")
-                        # Return None to prevent map creation
-                        return None
-        except Exception as e:
-            st.warning(f"Could not perform spatial join: {str(e)}")
+        if category in ['flares', 'volcanoes'] and not all_results.empty:
+            with st.spinner(f'Performing spatial join with OSM {category} data...'):
+                original_count = len(all_results)
+                all_results = self.osm_handler.spatial_join(all_results, category, bbox)
+                
+                # If spatial join found no matches
+                if all_results.empty:
+                    # Create a container for the message
+                    message_container = st.empty()
+                    message_container.warning(f"No {category} found within the selected area and date range. Try a different location or category.")
+                    # Return None to prevent map creation
+                    return None
                     
         st.write("Raw Data Information:")
         st.write(f"Total records: {len(all_results)}")

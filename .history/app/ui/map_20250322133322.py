@@ -58,7 +58,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
         # Create an empty map with default center if no data
         m = folium.Map(location=[34.0, 65.0], zoom_start=4, control_scale=True, 
                       tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                      attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community')
+                      attr='Satellite Basemap')
         
         # Add information about why map is empty
         empty_info = """
@@ -96,7 +96,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     
     # Set the initial tiles to satellite
     initial_tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-    tile_attr = 'Default Satellite Basemap'  # Simplified display name
+    tile_attr = 'Default Satellite Basemap'
     
     # Create the map with simplified attribution
     m = folium.Map(location=[center_lat, center_lon], control_scale=True, 
@@ -140,6 +140,23 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
             padding: 5px 10px;
             border-radius: 5px;
             margin-top: 10px;
+        }}
+        
+        /* Remove any whitespace */
+        body, html {{
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }}
+        
+        /* Make map container fill entire frame */
+        #map {{
+            height: 100vh !important;
+            width: 100vw !important;
+            position: absolute;
+            top: 0;
+            left: 0;
         }}
     </style>
     <div class="map-title"><b>{title}</b></div>
@@ -259,7 +276,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                         border: none; 
                         border-radius: 5px; 
                         cursor: pointer;">
-                    Please select {point['cluster']} from the drop-down menu below
+                    Select Cluster {point['cluster']}
                 </button>
             </div>
             """
@@ -357,11 +374,47 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     """
     m.get_root().html.add_child(folium.Element(info_text))
     
+    # Add "Exit Cluster Selection" button if a cluster is currently selected
+    if selected_cluster is not None:
+        exit_button = """
+        <div style="position: fixed; 
+                    top: 10px; 
+                    right: 10px; 
+                    z-index: 9999;">
+            <button id="exit_cluster_button" 
+                    style="background-color: #f44336; 
+                          color: white; 
+                          padding: 10px 20px; 
+                          border: none; 
+                          border-radius: 5px; 
+                          cursor: pointer;
+                          font-weight: bold;">
+                ← Exit Cluster Selection
+            </button>
+        </div>
+        <script>
+        document.getElementById('exit_cluster_button').addEventListener('click', function() {
+            // Clear selected cluster from URL and session state
+            const url = new URL(window.parent.location);
+            url.searchParams.delete('selected_cluster');
+            window.parent.history.pushState({}, '', url);
+            
+            // Dispatch a custom event to notify Streamlit
+            const event = new CustomEvent('exit_cluster_selection', {});
+            window.parent.document.dispatchEvent(event);
+            
+            // Trigger page reload to apply changes
+            window.parent.location.reload();
+        });
+        </script>
+        """
+        m.get_root().html.add_child(folium.Element(exit_button))
+    
     # Add export button if a cluster is selected
     if selected_cluster is not None:
         export_button = """
         <div style="position: fixed; 
-                    top: 10px; 
+                    top: 60px; 
                     right: 10px; 
                     z-index: 9999;">
             <button id="export_map_button" 
@@ -371,6 +424,7 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
                           border: none; 
                           border-radius: 5px; 
                           cursor: pointer;">
+                Export Map
             </button>
         </div>
         <script>
@@ -389,53 +443,59 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     return m
 
 
-def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_level=None, dot_color=None, border_color=None):
+def create_export_map(data, title, basemap_tiles, basemap, dot_color='#ff3300', border_color='white', border_width=1.5, fixed_zoom=7):
     """
-    Create a simplified map for export.
+    Create a simplified map for export with static zoom and custom colors.
     
     Args:
         data (pandas.DataFrame): DataFrame with fire data
         title (str): Map title
         basemap_tiles (dict): Dictionary of basemap tiles
         basemap (str): Basemap name
-        zoom_level (int, optional): Specific zoom level to use
-        dot_color (str, optional): Color for dots if not using temperature-based coloring
-        border_color (str, optional): Border color for dots
+        dot_color (str): Color of the points
+        border_color (str): Color of the point borders
+        border_width (float): Width of the point borders
+        fixed_zoom (int): Zoom level for the map
         
     Returns:
         str: HTML string representation of the map
     """
-    from app.config.settings import COLOR_PALETTES
+    import pandas as pd
+    import folium
+    import streamlit as st
     
     if data.empty:
         return None
     
-    # Calculate the bounding box
-    min_lat = data['latitude'].min()
-    max_lat = data['latitude'].max()
-    min_lon = data['longitude'].min()
-    max_lon = data['longitude'].max()
+    # Find coordinate columns
+    lat_col = next((col for col in ['latitude', 'Latitude', 'lat', 'Lat'] if col in data.columns), None)
+    lon_col = next((col for col in ['longitude', 'Longitude', 'lon', 'Lon'] if col in data.columns), None)
     
-    # Create a map centered on the mean coordinates
-    center_lat = (min_lat + max_lat) / 2
-    center_lon = (min_lon + max_lon) / 2
+    if not lat_col or not lon_col:
+        st.error(f"Cannot find coordinate columns in {data.columns.tolist()}")
+        return None
     
-    # Always use satellite basemap for exports by default
+    # Calculate center point of data
+    center_lat = (data[lat_col].min() + data[lat_col].max()) / 2
+    center_lon = (data[lon_col].min() + data[lon_col].max()) / 2
+    
+    # Calculate the bounding box for auto-zoom
+    min_lat = data[lat_col].min()
+    max_lat = data[lat_col].max()
+    min_lon = data[lon_col].min()
+    max_lon = data[lon_col].max()
+    
+    # Always use satellite as default for exports
     initial_tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-    tile_attr = 'Satellite Basemap'
+    tile_attr = 'Satellite'
     
-    # If user specifically selected a different basemap, honor that choice
-    if basemap != 'Satellite' and basemap in basemap_tiles:
-        initial_tiles = basemap_tiles[basemap]
-    
-    # Create the map with a default zoom level if not specified
-    if zoom_level is None:
-        zoom_level = 10
-    
-    m = folium.Map(location=[center_lat, center_lon], 
-                  zoom_start=zoom_level,
-                  tiles=initial_tiles,
-                  attr=tile_attr)
+    # Create a map with simplified attribution
+    m = folium.Map(
+        location=[center_lat, center_lon],
+        zoom_start=fixed_zoom,
+        tiles=initial_tiles,
+        attr=tile_attr
+    )
     
     # Add the actual required attribution in a more discreet way
     attribution_css = """
@@ -456,7 +516,7 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
     # Fit bounds to ensure all points are visible
     m.fit_bounds([[min_lat, min_lon], [max_lat, max_lon]], padding=(50, 50))
     
-    # Add the title with clean styling
+    # Add title with clean styling
     title_html = f'''
     <style>
         .leaflet-container {{ 
@@ -496,43 +556,15 @@ def create_export_map(data, title, basemap_tiles, basemap='Satellite', zoom_leve
     '''
     m.get_root().html.add_child(folium.Element(title_html))
     
-    # Determine which temperature column to use
-    temp_col = get_temp_column(data)
-    
-    # Set default colors if not provided
-    if dot_color is None:
-        dot_color = '#ff3300'  # Red-orange for default
-    if border_color is None:
-        border_color = 'white'
-    
-    # Create colormap for temperature if it exists
-    if temp_col and not (dot_color and border_color):
-        selected_palette = COLOR_PALETTES.get('inferno', COLOR_PALETTES['inferno'])
-        vmin = data[temp_col].min()
-        vmax = data[temp_col].max()
-        colormap = LinearColormap(
-            selected_palette,
-            vmin=vmin, 
-            vmax=vmax,
-            caption=f'Temperature (K)'
-        )
-        colormap.add_to(m)
-    
-    # Plot the points with temperature-based coloring if available
-    for idx, point in data.iterrows():
-        # Determine point color based on temperature or provided color
-        if temp_col and not pd.isna(point[temp_col]) and not dot_color:
-            fill_color = colormap(point[temp_col])
-        else:
-            fill_color = dot_color
-            
+    # Add each point with custom colors
+    for idx, row in data.iterrows():
         folium.CircleMarker(
-            location=[point['latitude'], point['longitude']],
+            location=[row[lat_col], row[lon_col]],
             radius=6,
-            color=border_color,
-            weight=1.5,
+            color=border_color,         # Border color
+            weight=border_width,        # Border width
             fill=True,
-            fill_color=fill_color,
+            fill_color=dot_color,       # Fill color
             fill_opacity=0.9
         ).add_to(m)
     
