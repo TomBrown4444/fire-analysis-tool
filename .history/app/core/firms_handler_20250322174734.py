@@ -228,6 +228,8 @@ class FIRMSHandler:
             st.error("Provide a country or bounding box")
             return None
         
+        bbox_filtered_results = all_results.copy()
+        
         # Convert dates to strings
         start_date_str = start_date_date.strftime('%Y-%m-%d')
         
@@ -487,9 +489,8 @@ class FIRMSHandler:
                     return None
                 
                 all_results = filtered_df
-                bbox_filtered_results = all_results.copy()
         
-                if use_strict_country_filtering and country:
+                if country:
                     try:
                         from app.config.settings import get_country_geojson
                         import shapely.geometry as sg
@@ -500,9 +501,9 @@ class FIRMSHandler:
                         
                         if country_geojson:
                             # Convert to shapely geometry
-                            country_polygon = None
                             if 'features' in country_geojson:
                                 # Multiple features case
+                                country_polygon = None
                                 for feature in country_geojson['features']:
                                     if feature['geometry']['type'] in ['Polygon', 'MultiPolygon']:
                                         poly = shape(feature['geometry'])
@@ -528,12 +529,9 @@ class FIRMSHandler:
                                 st.success(f"Strict filtering applied: {len(all_results)} points within actual {country} borders (removed {initial_count - len(all_results)} points outside borders).")
                             else:
                                 st.warning(f"No points found within the actual borders of {country} with strict filtering.")
-                                # IMPORTANT: Use the bbox filtered results instead
                                 all_results = bbox_filtered_results
                     except ImportError:
                         st.warning("Shapely library not installed. Cannot apply strict country filtering.")
-                        # Use bbox filtered results as fallback
-                        all_results = bbox_filtered_results
                     except Exception as e:
                         st.warning(f"Could not apply strict country filtering: {str(e)}")
                     

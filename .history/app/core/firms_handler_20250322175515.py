@@ -487,6 +487,7 @@ class FIRMSHandler:
                     return None
                 
                 all_results = filtered_df
+                
                 bbox_filtered_results = all_results.copy()
         
                 if use_strict_country_filtering and country:
