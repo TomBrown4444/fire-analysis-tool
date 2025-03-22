@@ -17,7 +17,6 @@ from app.ui.map import plot_fire_detections_folium
 from app.ui.sidebar import render_sidebar_content
 from app.ui.timeline import export_timeline, create_arrow_navigation
 from app.ui.utils import setup_page_config, create_custom_sidebar_js, move_content_to_sidebar_js, custom_css
-from app.ui.user_guide import USER_GUIDE_MARKDOWN
 
 # Import settings
 from app.config.settings import (
@@ -35,8 +34,6 @@ from app.config.settings import (
     DEFAULT_MIN_SAMPLES
 )
 
-from app.ui.user_guide import render_user_guide
-
 def main():
     """Main function to run the Streamlit app."""
     # Set up page configuration
@@ -52,9 +49,6 @@ def main():
     st.title("Fire Analysis Tool")
     st.markdown("---")
     
-    with st.expander("📖 User Guide & About", expanded=False):
-            st.markdown(USER_GUIDE_MARKDOWN, unsafe_allow_html=True)
-        
     # Initialize session state for results and selected cluster
     if 'results' not in st.session_state:
         st.session_state.results = None
@@ -376,16 +370,12 @@ def main():
                     # Create the playback visualization
                     playback_title = f"{category_display} {st.session_state.get('selected_cluster')} - {current_date}"
                     
-                    # PRE-FILTER the data to only include the selected cluster
                     cluster_filtered_results = st.session_state.results[
                         st.session_state.results['cluster'] == st.session_state.get('selected_cluster')
                     ].copy()
                     
-                    # Add debug info
-                    st.write(f"Debug: Found {len(cluster_filtered_results)} points in cluster {st.session_state.get('selected_cluster')}")
-                    
                     folium_map = plot_fire_detections_folium(
-                        cluster_filtered_results,  # ONLY pass the pre-filtered data
+                        st.session_state.results,
                         playback_title,
                         st.session_state.get('selected_cluster'),
                         True,

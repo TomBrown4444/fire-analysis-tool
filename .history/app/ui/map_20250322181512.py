@@ -41,8 +41,8 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     # Create a working copy of the dataframe
     plot_df = df.copy()
     
-#    st.write(f"DEBUG: Input dataframe has {len(df)} rows")
-#    st.write(f"DEBUG: Selected cluster: {selected_cluster}, Playback mode: {playback_mode}, Date: {playback_date}")
+    st.write(f"DEBUG: Input dataframe has {len(df)} rows")
+    st.write(f"DEBUG: Selected cluster: {selected_cluster}, Playback mode: {playback_mode}, Date: {playback_date}")
     
     # Filter out noise points (-1) if category is not raw data
     if category != "raw data":

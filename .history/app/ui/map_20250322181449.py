@@ -41,8 +41,8 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     # Create a working copy of the dataframe
     plot_df = df.copy()
     
-#    st.write(f"DEBUG: Input dataframe has {len(df)} rows")
-#    st.write(f"DEBUG: Selected cluster: {selected_cluster}, Playback mode: {playback_mode}, Date: {playback_date}")
+    st.write(f"DEBUG: Input dataframe has {len(df)} rows")
+    st.write(f"DEBUG: Selected cluster: {selected_cluster}, Playback mode: {playback_mode}, Date: {playback_date}")
     
     # Filter out noise points (-1) if category is not raw data
     if category != "raw data":
@@ -59,15 +59,6 @@ def plot_fire_detections_folium(df, title="Fire Detections", selected_cluster=No
     # Then apply playback filter if in playback mode
     if playback_mode and playback_date is not None:
         plot_df = plot_df[plot_df['acq_date'] == playback_date].copy()
-        title = f"{title} - {playback_date}"
-        
-    if playback_mode and playback_date is not None:
-        # Convert the date comparison to strings to ensure consistent formatting
-        df_dates = plot_df['acq_date'].astype(str)
-        playback_date_str = str(playback_date)
-        
-        plot_df = plot_df[df_dates == playback_date_str].copy()
-        st.write(f"DEBUG: After date filtering, found {len(plot_df)} rows for date {playback_date}")
         title = f"{title} - {playback_date}"
     
     # Check if there is any data to plot

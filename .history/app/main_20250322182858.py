@@ -17,7 +17,6 @@ from app.ui.map import plot_fire_detections_folium
 from app.ui.sidebar import render_sidebar_content
 from app.ui.timeline import export_timeline, create_arrow_navigation
 from app.ui.utils import setup_page_config, create_custom_sidebar_js, move_content_to_sidebar_js, custom_css
-from app.ui.user_guide import USER_GUIDE_MARKDOWN
 
 # Import settings
 from app.config.settings import (
@@ -52,9 +51,9 @@ def main():
     st.title("Fire Analysis Tool")
     st.markdown("---")
     
-    with st.expander("📖 User Guide & About", expanded=False):
-            st.markdown(USER_GUIDE_MARKDOWN, unsafe_allow_html=True)
-        
+    # Add User Guide right after the title
+    render_user_guide()
+    
     # Initialize session state for results and selected cluster
     if 'results' not in st.session_state:
         st.session_state.results = None
