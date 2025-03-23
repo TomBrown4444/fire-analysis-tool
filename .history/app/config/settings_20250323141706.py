@@ -5,9 +5,10 @@ Contains constants, predefined settings, and configuration parameters.
 import json
 import os
 from pathlib import Path
+# In your settings.py file
 import streamlit as st
 
-# Retrieve API credentials from Streamlit secrets if available, otherwise use fallbacks
+# Get default API credentials from secrets if available, otherwise use fallbacks
 DEFAULT_FIRMS_USERNAME = st.secrets.get("firms", {}).get("username", "tombrown4444")
 DEFAULT_FIRMS_PASSWORD = st.secrets.get("firms", {}).get("password", "wft_wxh6phw9URY-pkv")
 DEFAULT_FIRMS_API_KEY = st.secrets.get("firms", {}).get("api_key", "897a9b7869fd5e4ad231573e14e1c8c8")
