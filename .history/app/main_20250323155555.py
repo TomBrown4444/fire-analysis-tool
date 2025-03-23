@@ -24,8 +24,7 @@ from app.ui.user_guide import USER_GUIDE_MARKDOWN
 from app.config.settings import (
     COUNTRY_BBOXES,
     US_STATE_BBOXES, 
-    DATASET_START_DATES,
-    DATASET_AVAILABILITY, 
+    DATASET_START_DATES, 
     BASEMAP_TILES, 
     LARGE_COUNTRIES,
     DEFAULT_FIRMS_USERNAME,
@@ -187,8 +186,6 @@ def main():
             
             # Show warning for large countries with wide date ranges
             if country in LARGE_COUNTRIES and date_range_days > 14:
-                if not (country == "United States" and selected_state and selected_state != "All States"):
-                    st.warning(f"⚠️ You selected a {date_range_days}-day period for {country}, which is a large country. This may take a long time to process. Consider reducing your date range to 14 days or less for faster results.")
                 if country == "United States" and selected_state and selected_state != "All States":
                     # No warning for individual states
                     pass

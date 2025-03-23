@@ -24,8 +24,7 @@ from app.ui.user_guide import USER_GUIDE_MARKDOWN
 from app.config.settings import (
     COUNTRY_BBOXES,
     US_STATE_BBOXES, 
-    DATASET_START_DATES,
-    DATASET_AVAILABILITY, 
+    DATASET_START_DATES, 
     BASEMAP_TILES, 
     LARGE_COUNTRIES,
     DEFAULT_FIRMS_USERNAME,
@@ -103,6 +102,11 @@ def main():
                     "Select state",
                     list(US_STATE_BBOXES.keys())
                 )
+            
+            if country == "United States" and state and state != "All States":
+                from app.config.settings import US_STATE_BBOXES
+                bbox = US_STATE_BBOXES.get(state, None)
+                st.info(f"Using bounding box for {state}: {bbox}")
             
             # Dataset selection - checkboxes
             st.subheader("Select Datasets")
@@ -186,14 +190,11 @@ def main():
             date_range_days = (end_date - start_date).days
             
             # Show warning for large countries with wide date ranges
-            if country in LARGE_COUNTRIES and date_range_days > 14:
-                if not (country == "United States" and selected_state and selected_state != "All States"):
-                    st.warning(f"⚠️ You selected a {date_range_days}-day period for {country}, which is a large country. This may take a long time to process. Consider reducing your date range to 14 days or less for faster results.")
-                if country == "United States" and selected_state and selected_state != "All States":
-                    # No warning for individual states
-                    pass
-                else:
-                    st.warning(f"⚠️ You selected a {date_range_days}-day period for {country}, which is a large country. This may take a long time to process. Consider reducing your date range to 14 days or less for faster results.")
+            # In main.py where you show the warning
+            if country in LARGE_COUNTRIES and country != "United States" and date_range_days > 14:
+                st.warning(f"⚠️ You selected a {date_range_days}-day period for {country}, which is a large country.")
+            elif country == "United States" and selected_state == "All States" and date_range_days > 14:
+                st.warning(f"⚠️ You selected a {date_range_days}-day period for all of {country}.")
             
             # API credentials (hidden in expander)
             with st.expander("API Settings"):

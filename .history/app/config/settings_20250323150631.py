@@ -7,18 +7,12 @@ import os
 from pathlib import Path
 import streamlit as st
 
-# Default API credentials with fallback handling
-try:
-    # Try to get from secrets
-    DEFAULT_FIRMS_USERNAME = st.secrets.get("firms", {}).get("username", "tombrown4444")
-    DEFAULT_FIRMS_PASSWORD = st.secrets.get("firms", {}).get("password", "wft_wxh6phw9URY-pkv")
-    DEFAULT_FIRMS_API_KEY = st.secrets.get("firms", {}).get("api_key", "897a9b7869fd5e4ad231573e14e1c8c8")
-except FileNotFoundError:
-    # Fallback to hardcoded values if no secrets file
-    DEFAULT_FIRMS_USERNAME = "tombrown4444"
-    DEFAULT_FIRMS_PASSWORD = "wft_wxh6phw9URY-pkv"
-    DEFAULT_FIRMS_API_KEY = "897a9b7869fd5e4ad231573e14e1c8c8"
+# Retrieve API credentials from Streamlit secrets if available, otherwise use fallbacks
+DEFAULT_FIRMS_USERNAME = st.secrets.get("firms", {}).get("username", "tombrown4444")
+DEFAULT_FIRMS_PASSWORD = st.secrets.get("firms", {}).get("password", "wft_wxh6phw9URY-pkv")
+DEFAULT_FIRMS_API_KEY = st.secrets.get("firms", {}).get("api_key", "897a9b7869fd5e4ad231573e14e1c8c8")
 
+# Add these lines after the imports
 # Create directory for GeoJSON files
 GEOJSON_DIR = Path("app/data/geojson")
 os.makedirs(GEOJSON_DIR, exist_ok=True)
@@ -32,17 +26,6 @@ DATASET_START_DATES = {
     'VIIRS_SNPP_NRT': '2012-01-19',
     'VIIRS_NOAA20_NRT': '2018-01-01',
     'VIIRS_NOAA21_NRT': '2023-01-01'
-}
-
-DATASET_AVAILABILITY = {
-    'MODIS_NRT': {'min_date': '2000-11-01', 'max_date': '2025-03-23'},  # Current date
-    'MODIS_SP': {'min_date': '2000-11-01', 'max_date': '2025-03-23'},
-    'VIIRS_NOAA20_NRT': {'min_date': '2018-01-01', 'max_date': '2025-03-23'},
-    'VIIRS_NOAA20_SP': {'min_date': '2018-01-01', 'max_date': '2025-03-23'},
-    'VIIRS_NOAA21_NRT': {'min_date': '2023-01-01', 'max_date': '2025-03-23'},
-    'VIIRS_SNPP_NRT': {'min_date': '2012-01-19', 'max_date': '2025-03-23'},
-    'VIIRS_SNPP_SP': {'min_date': '2012-01-19', 'max_date': '2025-03-23'},
-    'LANDSAT_NRT': {'min_date': '2022-06-20', 'max_date': '2025-03-23'}
 }
 
 # Basemap tiles for the map visualization

@@ -7,18 +7,12 @@ import os
 from pathlib import Path
 import streamlit as st
 
-# Default API credentials with fallback handling
-try:
-    # Try to get from secrets
-    DEFAULT_FIRMS_USERNAME = st.secrets.get("firms", {}).get("username", "tombrown4444")
-    DEFAULT_FIRMS_PASSWORD = st.secrets.get("firms", {}).get("password", "wft_wxh6phw9URY-pkv")
-    DEFAULT_FIRMS_API_KEY = st.secrets.get("firms", {}).get("api_key", "897a9b7869fd5e4ad231573e14e1c8c8")
-except FileNotFoundError:
-    # Fallback to hardcoded values if no secrets file
-    DEFAULT_FIRMS_USERNAME = "tombrown4444"
-    DEFAULT_FIRMS_PASSWORD = "wft_wxh6phw9URY-pkv"
-    DEFAULT_FIRMS_API_KEY = "897a9b7869fd5e4ad231573e14e1c8c8"
+# Retrieve API credentials from Streamlit secrets if available, otherwise use fallbacks
+DEFAULT_FIRMS_USERNAME = st.secrets.get("firms", {}).get("username", "tombrown4444")
+DEFAULT_FIRMS_PASSWORD = st.secrets.get("firms", {}).get("password", "wft_wxh6phw9URY-pkv")
+DEFAULT_FIRMS_API_KEY = st.secrets.get("firms", {}).get("api_key", "897a9b7869fd5e4ad231573e14e1c8c8")
 
+# Add these lines after the imports
 # Create directory for GeoJSON files
 GEOJSON_DIR = Path("app/data/geojson")
 os.makedirs(GEOJSON_DIR, exist_ok=True)
@@ -32,17 +26,6 @@ DATASET_START_DATES = {
     'VIIRS_SNPP_NRT': '2012-01-19',
     'VIIRS_NOAA20_NRT': '2018-01-01',
     'VIIRS_NOAA21_NRT': '2023-01-01'
-}
-
-DATASET_AVAILABILITY = {
-    'MODIS_NRT': {'min_date': '2000-11-01', 'max_date': '2025-03-23'},  # Current date
-    'MODIS_SP': {'min_date': '2000-11-01', 'max_date': '2025-03-23'},
-    'VIIRS_NOAA20_NRT': {'min_date': '2018-01-01', 'max_date': '2025-03-23'},
-    'VIIRS_NOAA20_SP': {'min_date': '2018-01-01', 'max_date': '2025-03-23'},
-    'VIIRS_NOAA21_NRT': {'min_date': '2023-01-01', 'max_date': '2025-03-23'},
-    'VIIRS_SNPP_NRT': {'min_date': '2012-01-19', 'max_date': '2025-03-23'},
-    'VIIRS_SNPP_SP': {'min_date': '2012-01-19', 'max_date': '2025-03-23'},
-    'LANDSAT_NRT': {'min_date': '2022-06-20', 'max_date': '2025-03-23'}
 }
 
 # Basemap tiles for the map visualization
@@ -262,62 +245,7 @@ US_STATE_BBOXES = {
     'Wyoming': '-111.1,41.0,-104.1,45.0'
 }
 
-def get_country_geojson(region_name):
-    """Get GeoJSON for a country or US state."""
-    import geopandas as gpd
-    
-    # Check if it's a US state
-    is_us_state = region_name in US_STATE_BBOXES and region_name != "All States" and region_name != "United States"
-    
-    # Create appropriate filename
-    if is_us_state:
-        safe_name = f"us_state_{region_name.lower().replace(' ', '_')}"
-    else:
-        safe_name = region_name.lower().replace(' ', '_')
-    
-    filepath = GEOJSON_DIR / f"{safe_name}.geojson"
-    
-    # Rest of function remains similar, but handle states differently:
-    if is_us_state:
-        try:
-            # Load US states from Natural Earth
-            states = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
-            # Filter to US
-            us_states = states[states.iso_a2 == 'US']
-            # Find specific state
-            state_data = us_states[us_states.name == region_name]
-            
-            if len(state_data) == 0:
-                print(f"State '{region_name}' not found")
-                return None
-                
-            # Save to file
-            state_data.to_file(filepath, driver='GeoJSON')
-            
-            # Return as dict
-            with open(filepath, 'r') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"Error getting state GeoJSON: {e}")
-            return None
-    else:
-        # Load world data from Natural Earth
-        world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
-        
-        # Find the country
-        country_data = world[world.name.str.lower() == region_name.lower()]
-        
-        if country_data.empty:
-            print(f"Country '{region_name}' not found in Natural Earth data")
-            return None
-            
-        # Save to file
-        country_data.to_file(filepath, driver='GeoJSON')
-        
-        # Load and return
-        with open(filepath, 'r') as f:
-            return json.load(f)
-        
+# Add this function to your settings.py file
 def get_country_geojson(country_name):
     """Get GeoJSON for a country, downloading it if needed."""
     try:

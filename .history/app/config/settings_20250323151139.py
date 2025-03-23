@@ -19,6 +19,7 @@ except FileNotFoundError:
     DEFAULT_FIRMS_PASSWORD = "wft_wxh6phw9URY-pkv"
     DEFAULT_FIRMS_API_KEY = "897a9b7869fd5e4ad231573e14e1c8c8"
 
+# Add these lines after the imports
 # Create directory for GeoJSON files
 GEOJSON_DIR = Path("app/data/geojson")
 os.makedirs(GEOJSON_DIR, exist_ok=True)
@@ -32,17 +33,6 @@ DATASET_START_DATES = {
     'VIIRS_SNPP_NRT': '2012-01-19',
     'VIIRS_NOAA20_NRT': '2018-01-01',
     'VIIRS_NOAA21_NRT': '2023-01-01'
-}
-
-DATASET_AVAILABILITY = {
-    'MODIS_NRT': {'min_date': '2000-11-01', 'max_date': '2025-03-23'},  # Current date
-    'MODIS_SP': {'min_date': '2000-11-01', 'max_date': '2025-03-23'},
-    'VIIRS_NOAA20_NRT': {'min_date': '2018-01-01', 'max_date': '2025-03-23'},
-    'VIIRS_NOAA20_SP': {'min_date': '2018-01-01', 'max_date': '2025-03-23'},
-    'VIIRS_NOAA21_NRT': {'min_date': '2023-01-01', 'max_date': '2025-03-23'},
-    'VIIRS_SNPP_NRT': {'min_date': '2012-01-19', 'max_date': '2025-03-23'},
-    'VIIRS_SNPP_SP': {'min_date': '2012-01-19', 'max_date': '2025-03-23'},
-    'LANDSAT_NRT': {'min_date': '2022-06-20', 'max_date': '2025-03-23'}
 }
 
 # Basemap tiles for the map visualization

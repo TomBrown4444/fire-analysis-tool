@@ -198,19 +198,12 @@ class FIRMSHandler:
                 # Default to 7 days ago if parsing fails
                 start_date_date = today - timedelta(days=7)
                 
-        if dataset in DATASET_AVAILABILITY:
-            max_date = datetime.strptime(DATASET_AVAILABILITY[dataset]['max_date'], '%Y-%m-%d').date()
-            if end_date_date > max_date:
-                st.warning(f"End date {end_date_date} is after the latest available date ({max_date}) for {dataset}. Using latest available date.")
-                end_date_date = max_date
-            
-            # Add this check after both dates are defined
-            if start_date_date > end_date_date:
-                st.warning("Start date was after end date - dates have been swapped.")
-                start_date_date, end_date_date = end_date_date, start_date_date
+        if start_date_date > end_date_date:
+            start_date_date, end_date_date = end_date_date, start_date_date
+            st.warning("Start date was after end date - dates have been swapped.")
         
         # Check if we need historical data (more than 10 days ago)
-        need_historical = (today - start_date_date).days > 30
+        need_historical = (today - start_date_date).days > 10
         
         # If we need historical data, switch to Standard Processing dataset
         original_dataset = dataset

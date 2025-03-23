@@ -24,8 +24,7 @@ from app.ui.user_guide import USER_GUIDE_MARKDOWN
 from app.config.settings import (
     COUNTRY_BBOXES,
     US_STATE_BBOXES, 
-    DATASET_START_DATES,
-    DATASET_AVAILABILITY, 
+    DATASET_START_DATES, 
     BASEMAP_TILES, 
     LARGE_COUNTRIES,
     DEFAULT_FIRMS_USERNAME,
