@@ -244,8 +244,6 @@ def main():
                 with st.spinner("Analyzing fire data..."):
                     handler = FIRMSHandler(username, password, api_key)
                     
-                    actual_use_clustering = use_clustering and category != 'raw data'
-                    
                     # Determine if we need to pass state parameter
                     if country == "United States" and selected_state and selected_state != "All States":
                         results = handler.fetch_fire_data(

@@ -149,30 +149,43 @@ class FIRMSHandler:
     ):
         """
         Fetch and process fire data from FIRMS API with support for historical data.
+        
+        Args:
+            country (str): Country name
+            bbox (str): Bounding box string "min_lon,min_lat,max_lon,max_lat"
+            dataset (str): FIRMS dataset name (e.g., 'VIIRS_NOAA20_NRT')
+            start_date (datetime/date/str): Start date for data
+            end_date (datetime/date/str): End date for data
+            category (str): Data category ('fires', 'flares', 'volcanoes', 'raw data')
+            use_clustering (bool): Whether to apply clustering
+            eps (float): DBSCAN epsilon parameter (spatial distance threshold)
+            min_samples (int): DBSCAN min_samples parameter (minimum points to form cluster)
+            chunk_days (int): Number of days to fetch in each API call
+            max_time_diff_days (int): Maximum days between events to be considered same cluster
+            
+        Returns:
+            pandas.DataFrame: Processed fire data with cluster labels
         """
         # Import dataset availability info from settings
         try:
             from app.config.settings import DATASET_AVAILABILITY
         except ImportError:
-            # Fallback if not available in settings - UPDATE THESE DATES
+            # Fallback if not available in settings
             DATASET_AVAILABILITY = {
-                'MODIS_NRT': {'min_date': '2024-12-01', 'max_date': '2025-03-24'},
-                'MODIS_SP': {'min_date': '2000-11-01', 'max_date': '2024-12-31'},
-                'VIIRS_NOAA20_NRT': {'min_date': '2024-12-01', 'max_date': '2025-03-24'},
-                'VIIRS_NOAA20_SP': {'min_date': '2018-04-01', 'max_date': '2025-03-24'},  # Updated end date
-                'VIIRS_NOAA21_NRT': {'min_date': '2024-01-17', 'max_date': '2025-03-24'},
-                'VIIRS_SNPP_NRT': {'min_date': '2025-01-01', 'max_date': '2025-03-24'},
-                'VIIRS_SNPP_SP': {'min_date': '2012-01-20', 'max_date': '2025-03-24'},  # Updated end date
-                'LANDSAT_NRT': {'min_date': '2022-06-20', 'max_date': '2025-03-24'}
+                'MODIS_NRT': {'min_date': '2024-12-01', 'max_date': '2025-03-17'},
+                'MODIS_SP': {'min_date': '2000-11-01', 'max_date': '2024-11-30'},
+                'VIIRS_NOAA20_NRT': {'min_date': '2024-12-01', 'max_date': '2025-03-17'},
+                'VIIRS_NOAA20_SP': {'min_date': '2018-04-01', 'max_date': '2024-11-30'},
+                'VIIRS_NOAA21_NRT': {'min_date': '2024-01-17', 'max_date': '2025-03-17'},
+                'VIIRS_SNPP_NRT': {'min_date': '2025-01-01', 'max_date': '2025-03-17'},
+                'VIIRS_SNPP_SP': {'min_date': '2012-01-20', 'max_date': '2024-12-31'},
+                'LANDSAT_NRT': {'min_date': '2022-06-20', 'max_date': '2025-03-17'}
             }
         
         # Determine if we need historical data
         today = datetime.now().date()
         
-        # Print original dataset for debugging
-#        st.write(f"Debug - Original dataset: {dataset}")
-        
-        # Convert dates to proper format for comparison
+# Convert dates to proper format for comparison
         if isinstance(start_date, date):
             start_date_date = start_date
         elif isinstance(start_date, datetime):
@@ -184,6 +197,9 @@ class FIRMSHandler:
             except:
                 # Default to 7 days ago if parsing fails
                 start_date_date = today - timedelta(days=7)
+                
+        st.write(f"Debug - Date range: {start_date_date} to {end_date_date}")
+        st.write(f"Debug - Using dataset: {dataset}")
 
         # Process end_date BEFORE using it in any comparisons
         if isinstance(end_date, date):
@@ -198,9 +214,6 @@ class FIRMSHandler:
                 # Default to today if parsing fails
                 end_date_date = today
 
-        # Print date range for debugging
-#        st.write(f"Debug - Processing date range: {start_date_date} to {end_date_date}")
-        
         # Now that both dates are defined, perform checks
         # Check if start date is after end date and swap if needed
         if start_date_date > end_date_date:
@@ -209,26 +222,13 @@ class FIRMSHandler:
                 
         # Check if we need historical data (more than 30 days ago)
         need_historical = (today - start_date_date).days > 30
-        
-#        st.write(f"Debug - Need historical data: {need_historical}")
                 
         # If we need historical data, switch to Standard Processing dataset
         original_dataset = dataset
-        # Only switch datasets if we need historical AND we're using an NRT dataset
         if need_historical and "_NRT" in dataset:
             # Switch to Standard Processing version
-            sp_dataset = dataset.replace("_NRT", "_SP")
-            # Check if the SP dataset exists in our availability dictionary
-            if sp_dataset in DATASET_AVAILABILITY:
-                dataset = sp_dataset
-                st.info(f"Fetching historical data using {dataset} dataset")
-            else:
-                # Fallback to VIIRS_SNPP_SP which has the longest historical record
-                dataset = "VIIRS_SNPP_SP"
-                st.info(f"No standard processing version available for {original_dataset}. Using {dataset} instead.")
-        
-        # Debug output before dataset validation
-#        st.write(f"Debug - Selected dataset: {dataset}")
+            dataset = dataset.replace("_NRT", "_SP")
+            st.info(f"Fetching historical data using {dataset} dataset")
                 
         # Check dataset validity
         if dataset not in DATASET_AVAILABILITY:
@@ -247,93 +247,6 @@ class FIRMSHandler:
             if end_date_date > max_date:
                 st.warning(f"End date {end_date_date} is after the latest available date ({max_date}) for {dataset}. Using latest available date.")
                 end_date_date = max_date
-        
-        # Debug output after date adjustment
-#        st.write(f"Debug - Adjusted date range: {start_date_date} to {end_date_date}")
-
-        if not bbox:
-            if country == "United States" and state and state != "All States":
-                # Use state bbox if selected
-                from app.config.settings import US_STATE_BBOXES
-                bbox = US_STATE_BBOXES.get(state, None)
-                st.info(f"Using bounding box for {state}: {bbox}")
-            elif country:
-                # Use country bbox
-                bbox = self.get_country_bbox(country)
-                    
-            if not bbox:
-                st.error("Provide a country or bounding box")
-                return None
-        
-        # Debug output for bbox
-#        st.write(f"Debug - Using bbox: {bbox}")
-                
-        # Convert dates to strings
-        start_date_str = start_date_date.strftime('%Y-%m-%d')
-        end_date_str = end_date_date.strftime('%Y-%m-%d')
-        
-        # Now we need to fetch data in chunks, respecting the API limits
-        st.write(f"Fetching fire data from {start_date_str} to {end_date_str} for {country or 'selected region'}...")
-        
-        # First, do a quick test call to see if any data exists
-        # This helps avoid processing multiple chunks unnecessarily
-        test_date = start_date_date
-        test_url = f"{self.base_url}{self.api_key}/{dataset}/{bbox}/7/{test_date.strftime('%Y-%m-%d')}"
-#        st.write(f"Debug - Testing API availability with: {test_url}")
-        
-        try:
-            test_response = self.session.get(test_url, timeout=60)
-            test_response.raise_for_status()
-            
-            if test_response.text.strip() and "Invalid" not in test_response.text and "Error" not in test_response.text:
-                test_df = pd.read_csv(StringIO(test_response.text))
-                if len(test_df) > 0:
-                    st.write(f"Debug - Test API call successful - found {len(test_df)} records")
-                else:
-                    st.write("Debug - Test API call returned empty dataset")
-                    # If using historical dataset, try with NRT dataset as a fallback for recent dates
-                    if need_historical and dataset != original_dataset and (end_date_date - today).days > -30:
-                        st.info(f"No data found in historical dataset. Trying with original {original_dataset} dataset...")
-                        dataset = original_dataset
-                        test_url = f"{self.base_url}{self.api_key}/{dataset}/{bbox}/7/{test_date.strftime('%Y-%m-%d')}"
-                        st.write(f"Debug - Testing original dataset API: {test_url}")
-                        
-                        test_response = self.session.get(test_url, timeout=60)
-                        test_response.raise_for_status()
-                        
-                        if test_response.text.strip() and "Invalid" not in test_response.text and "Error" not in test_response.text:
-                            test_df = pd.read_csv(StringIO(test_response.text))
-                            if len(test_df) > 0:
-                                st.write(f"Debug - Original dataset test successful - found {len(test_df)} records")
-                            else:
-                                st.warning(f"No fire data available for {country or 'selected region'} in the selected date range and datasets.")
-                                return None
-            else:
-                st.write(f"Debug - Test API call invalid response: {test_response.text[:100]}")
-        except Exception as e:
-            st.write(f"Debug - Test API call failed: {str(e)}")
-        
-        # Create date chunks
-        date_chunks = []
-        current_date = start_date_date
-        while current_date <= end_date_date:
-            chunk_end = min(current_date + timedelta(days=min(10, chunk_days)-1), end_date_date)
-            date_chunks.append((current_date, chunk_end))
-            current_date = chunk_end + timedelta(days=1)
-        
-        # Set up progress tracking
-        st.write(f"Processing data in {len(date_chunks)} chunks...")
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # Initialize combined results
-        all_results = pd.DataFrame()
-        
-        # Debug output for first few chunks
-        for i, (chunk_start, chunk_end) in enumerate(date_chunks[:3]):
-#            st.write(f"Debug - Chunk {i+1}: {chunk_start} to {chunk_end}")
-            if i >= 2:  # Only show first 3 chunks
-                break
 
         if not bbox:
             if country == "United States" and state and state != "All States":
@@ -389,7 +302,6 @@ class FIRMSHandler:
                     chunk_end_str = chunk_end.strftime('%Y-%m-%d')
                     status_text.write(f"Western Region - Chunk {i+1}/{len(date_chunks)}: {chunk_start_str} to {chunk_end_str}")
                     progress_bar.progress((i) / (len(date_chunks) * 3))  # 3 regions
-                    
                     
                     days_in_chunk = (chunk_end - chunk_start).days + 1
                     if need_historical:
@@ -513,9 +425,22 @@ class FIRMSHandler:
                         st.warning(f"Error processing chunk {i+1}: {str(e)}")
         else:
             # Standard chunked processing for normal countries
+            st.write(f"Debug - Processing {len(date_chunks)} chunks:")
             for i, (chunk_start, chunk_end) in enumerate(date_chunks):
+                st.write(f"  Chunk {i+1}: {chunk_start} to {chunk_end}")
                 chunk_start_str = chunk_start.strftime('%Y-%m-%d')
                 chunk_end_str = chunk_end.strftime('%Y-%m-%d')
+                
+            try:
+                response = self.session.get(url, timeout=60)
+                response.raise_for_status()
+                
+                # Add debugging info
+                st.write(f"Debug - Chunk {i+1} URL: {url}")
+                st.write(f"Debug - Response status: {response.status_code}")
+                st.write(f"Debug - Response size: {len(response.text)} bytes")
+            except requests.exceptions.RequestException as e:
+                st.warning(f"Error fetching data for chunk {i+1}: {str(e)}")
                 
                 # Update progress
                 status_text.write(f"Fetching chunk {i+1}/{len(date_chunks)}: {chunk_start_str} to {chunk_end_str}")

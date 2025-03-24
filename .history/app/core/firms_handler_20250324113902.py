@@ -170,7 +170,7 @@ class FIRMSHandler:
         today = datetime.now().date()
         
         # Print original dataset for debugging
-#        st.write(f"Debug - Original dataset: {dataset}")
+        st.write(f"Debug - Original dataset: {dataset}")
         
         # Convert dates to proper format for comparison
         if isinstance(start_date, date):
@@ -199,7 +199,7 @@ class FIRMSHandler:
                 end_date_date = today
 
         # Print date range for debugging
-#        st.write(f"Debug - Processing date range: {start_date_date} to {end_date_date}")
+        st.write(f"Debug - Processing date range: {start_date_date} to {end_date_date}")
         
         # Now that both dates are defined, perform checks
         # Check if start date is after end date and swap if needed
@@ -210,7 +210,7 @@ class FIRMSHandler:
         # Check if we need historical data (more than 30 days ago)
         need_historical = (today - start_date_date).days > 30
         
-#        st.write(f"Debug - Need historical data: {need_historical}")
+        st.write(f"Debug - Need historical data: {need_historical}")
                 
         # If we need historical data, switch to Standard Processing dataset
         original_dataset = dataset
@@ -228,7 +228,7 @@ class FIRMSHandler:
                 st.info(f"No standard processing version available for {original_dataset}. Using {dataset} instead.")
         
         # Debug output before dataset validation
-#        st.write(f"Debug - Selected dataset: {dataset}")
+        st.write(f"Debug - Selected dataset: {dataset}")
                 
         # Check dataset validity
         if dataset not in DATASET_AVAILABILITY:
@@ -249,7 +249,7 @@ class FIRMSHandler:
                 end_date_date = max_date
         
         # Debug output after date adjustment
-#        st.write(f"Debug - Adjusted date range: {start_date_date} to {end_date_date}")
+        st.write(f"Debug - Adjusted date range: {start_date_date} to {end_date_date}")
 
         if not bbox:
             if country == "United States" and state and state != "All States":
@@ -266,7 +266,7 @@ class FIRMSHandler:
                 return None
         
         # Debug output for bbox
-#        st.write(f"Debug - Using bbox: {bbox}")
+        st.write(f"Debug - Using bbox: {bbox}")
                 
         # Convert dates to strings
         start_date_str = start_date_date.strftime('%Y-%m-%d')
@@ -279,7 +279,7 @@ class FIRMSHandler:
         # This helps avoid processing multiple chunks unnecessarily
         test_date = start_date_date
         test_url = f"{self.base_url}{self.api_key}/{dataset}/{bbox}/7/{test_date.strftime('%Y-%m-%d')}"
-#        st.write(f"Debug - Testing API availability with: {test_url}")
+        st.write(f"Debug - Testing API availability with: {test_url}")
         
         try:
             test_response = self.session.get(test_url, timeout=60)
@@ -331,7 +331,7 @@ class FIRMSHandler:
         
         # Debug output for first few chunks
         for i, (chunk_start, chunk_end) in enumerate(date_chunks[:3]):
-#            st.write(f"Debug - Chunk {i+1}: {chunk_start} to {chunk_end}")
+            st.write(f"Debug - Chunk {i+1}: {chunk_start} to {chunk_end}")
             if i >= 2:  # Only show first 3 chunks
                 break
 
