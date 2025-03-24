@@ -221,7 +221,7 @@ class FIRMSHandler:
             # Check if the SP dataset exists in our availability dictionary
             if sp_dataset in DATASET_AVAILABILITY:
                 dataset = sp_dataset
-#                st.info(f"Fetching historical data using {dataset} dataset")
+                st.info(f"Fetching historical data using {dataset} dataset")
             else:
                 # Fallback to VIIRS_SNPP_SP which has the longest historical record
                 dataset = "VIIRS_SNPP_SP"

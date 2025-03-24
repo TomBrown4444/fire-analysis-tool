@@ -221,7 +221,7 @@ class FIRMSHandler:
             # Check if the SP dataset exists in our availability dictionary
             if sp_dataset in DATASET_AVAILABILITY:
                 dataset = sp_dataset
-#                st.info(f"Fetching historical data using {dataset} dataset")
+                st.info(f"Fetching historical data using {dataset} dataset")
             else:
                 # Fallback to VIIRS_SNPP_SP which has the longest historical record
                 dataset = "VIIRS_SNPP_SP"
@@ -287,8 +287,31 @@ class FIRMSHandler:
             
             if test_response.text.strip() and "Invalid" not in test_response.text and "Error" not in test_response.text:
                 test_df = pd.read_csv(StringIO(test_response.text))
+                if len(test_df) > 0:
+                    st.write(f"Debug - Test API call successful - found {len(test_df)} records")
+                else:
+                    st.write("Debug - Test API call returned empty dataset")
+                    # If using historical dataset, try with NRT dataset as a fallback for recent dates
+                    if need_historical and dataset != original_dataset and (end_date_date - today).days > -30:
+                        st.info(f"No data found in historical dataset. Trying with original {original_dataset} dataset...")
+                        dataset = original_dataset
+                        test_url = f"{self.base_url}{self.api_key}/{dataset}/{bbox}/7/{test_date.strftime('%Y-%m-%d')}"
+                        st.write(f"Debug - Testing original dataset API: {test_url}")
+                        
+                        test_response = self.session.get(test_url, timeout=60)
+                        test_response.raise_for_status()
+                        
+                        if test_response.text.strip() and "Invalid" not in test_response.text and "Error" not in test_response.text:
+                            test_df = pd.read_csv(StringIO(test_response.text))
+                            if len(test_df) > 0:
+                                st.write(f"Debug - Original dataset test successful - found {len(test_df)} records")
+                            else:
+                                st.warning(f"No fire data available for {country or 'selected region'} in the selected date range and datasets.")
+                                return None
+            else:
+                st.write(f"Debug - Test API call invalid response: {test_response.text[:100]}")
         except Exception as e:
-            st.write(f"Debug - API call failed: {str(e)}")
+            st.write(f"Debug - Test API call failed: {str(e)}")
         
         # Create date chunks
         date_chunks = []
@@ -317,7 +340,7 @@ class FIRMSHandler:
                 # Use state bbox if selected
                 from app.config.settings import US_STATE_BBOXES
                 bbox = US_STATE_BBOXES.get(state, None)
- #               st.info(f"Using bounding box for {state}: {bbox}")
+                st.info(f"Using bounding box for {state}: {bbox}")
             elif country:
                 # Use country bbox
                 bbox = self.get_country_bbox(country)

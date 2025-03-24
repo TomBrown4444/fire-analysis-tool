@@ -221,7 +221,7 @@ class FIRMSHandler:
             # Check if the SP dataset exists in our availability dictionary
             if sp_dataset in DATASET_AVAILABILITY:
                 dataset = sp_dataset
-#                st.info(f"Fetching historical data using {dataset} dataset")
+                st.info(f"Fetching historical data using {dataset} dataset")
             else:
                 # Fallback to VIIRS_SNPP_SP which has the longest historical record
                 dataset = "VIIRS_SNPP_SP"
@@ -317,7 +317,7 @@ class FIRMSHandler:
                 # Use state bbox if selected
                 from app.config.settings import US_STATE_BBOXES
                 bbox = US_STATE_BBOXES.get(state, None)
- #               st.info(f"Using bounding box for {state}: {bbox}")
+                st.info(f"Using bounding box for {state}: {bbox}")
             elif country:
                 # Use country bbox
                 bbox = self.get_country_bbox(country)
