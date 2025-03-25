@@ -170,7 +170,7 @@ class FIRMSHandler:
         today = datetime.now().date()
         
         # Print original dataset for debugging
-        st.write(f"Debug - Original dataset: {dataset}")
+#        st.write(f"Debug - Original dataset: {dataset}")
         
         # Convert dates to proper format for comparison
         if isinstance(start_date, date):
@@ -199,7 +199,7 @@ class FIRMSHandler:
                 end_date_date = today
 
         # Print date range for debugging
-        st.write(f"Debug - Processing date range: {start_date_date} to {end_date_date}")
+#        st.write(f"Debug - Processing date range: {start_date_date} to {end_date_date}")
         
         # Now that both dates are defined, perform checks
         # Check if start date is after end date and swap if needed
@@ -207,12 +207,12 @@ class FIRMSHandler:
             st.warning("Start date was after end date - dates have been swapped.")
             start_date_date, end_date_date = end_date_date, start_date_date
                 
-        # Check if we need historical data (more than 30 days ago)
+        # Check if historical data needed (more than 30 days ago)
         need_historical = (today - start_date_date).days > 30
         
-        st.write(f"Debug - Need historical data: {need_historical}")
+#        st.write(f"Debug - Need historical data: {need_historical}")
                 
-        # If we need historical data, switch to Standard Processing dataset
+        # If historical data needed, switch to Standard Processing dataset
         original_dataset = dataset
         # Only switch datasets if we need historical AND we're using an NRT dataset
         if need_historical and "_NRT" in dataset:
@@ -221,14 +221,14 @@ class FIRMSHandler:
             # Check if the SP dataset exists in our availability dictionary
             if sp_dataset in DATASET_AVAILABILITY:
                 dataset = sp_dataset
-                st.info(f"Fetching historical data using {dataset} dataset")
+#                st.info(f"Fetching historical data using {dataset} dataset")
             else:
                 # Fallback to VIIRS_SNPP_SP which has the longest historical record
                 dataset = "VIIRS_SNPP_SP"
                 st.info(f"No standard processing version available for {original_dataset}. Using {dataset} instead.")
         
         # Debug output before dataset validation
-        st.write(f"Debug - Selected dataset: {dataset}")
+#        st.write(f"Debug - Selected dataset: {dataset}")
                 
         # Check dataset validity
         if dataset not in DATASET_AVAILABILITY:
@@ -249,7 +249,7 @@ class FIRMSHandler:
                 end_date_date = max_date
         
         # Debug output after date adjustment
-        st.write(f"Debug - Adjusted date range: {start_date_date} to {end_date_date}")
+#        st.write(f"Debug - Adjusted date range: {start_date_date} to {end_date_date}")
 
         if not bbox:
             if country == "United States" and state and state != "All States":
@@ -266,7 +266,7 @@ class FIRMSHandler:
                 return None
         
         # Debug output for bbox
-        st.write(f"Debug - Using bbox: {bbox}")
+#        st.write(f"Debug - Using bbox: {bbox}")
                 
         # Convert dates to strings
         start_date_str = start_date_date.strftime('%Y-%m-%d')
@@ -279,7 +279,7 @@ class FIRMSHandler:
         # This helps avoid processing multiple chunks unnecessarily
         test_date = start_date_date
         test_url = f"{self.base_url}{self.api_key}/{dataset}/{bbox}/7/{test_date.strftime('%Y-%m-%d')}"
-        st.write(f"Debug - Testing API availability with: {test_url}")
+#        st.write(f"Debug - Testing API availability with: {test_url}")
         
         try:
             test_response = self.session.get(test_url, timeout=60)
@@ -287,31 +287,8 @@ class FIRMSHandler:
             
             if test_response.text.strip() and "Invalid" not in test_response.text and "Error" not in test_response.text:
                 test_df = pd.read_csv(StringIO(test_response.text))
-                if len(test_df) > 0:
-                    st.write(f"Debug - Test API call successful - found {len(test_df)} records")
-                else:
-                    st.write("Debug - Test API call returned empty dataset")
-                    # If using historical dataset, try with NRT dataset as a fallback for recent dates
-                    if need_historical and dataset != original_dataset and (end_date_date - today).days > -30:
-                        st.info(f"No data found in historical dataset. Trying with original {original_dataset} dataset...")
-                        dataset = original_dataset
-                        test_url = f"{self.base_url}{self.api_key}/{dataset}/{bbox}/7/{test_date.strftime('%Y-%m-%d')}"
-                        st.write(f"Debug - Testing original dataset API: {test_url}")
-                        
-                        test_response = self.session.get(test_url, timeout=60)
-                        test_response.raise_for_status()
-                        
-                        if test_response.text.strip() and "Invalid" not in test_response.text and "Error" not in test_response.text:
-                            test_df = pd.read_csv(StringIO(test_response.text))
-                            if len(test_df) > 0:
-                                st.write(f"Debug - Original dataset test successful - found {len(test_df)} records")
-                            else:
-                                st.warning(f"No fire data available for {country or 'selected region'} in the selected date range and datasets.")
-                                return None
-            else:
-                st.write(f"Debug - Test API call invalid response: {test_response.text[:100]}")
         except Exception as e:
-            st.write(f"Debug - Test API call failed: {str(e)}")
+            st.write(f"Debug - API call failed: {str(e)}")
         
         # Create date chunks
         date_chunks = []
@@ -331,7 +308,7 @@ class FIRMSHandler:
         
         # Debug output for first few chunks
         for i, (chunk_start, chunk_end) in enumerate(date_chunks[:3]):
-            st.write(f"Debug - Chunk {i+1}: {chunk_start} to {chunk_end}")
+#            st.write(f"Debug - Chunk {i+1}: {chunk_start} to {chunk_end}")
             if i >= 2:  # Only show first 3 chunks
                 break
 
@@ -340,7 +317,7 @@ class FIRMSHandler:
                 # Use state bbox if selected
                 from app.config.settings import US_STATE_BBOXES
                 bbox = US_STATE_BBOXES.get(state, None)
-                st.info(f"Using bounding box for {state}: {bbox}")
+ #               st.info(f"Using bounding box for {state}: {bbox}")
             elif country:
                 # Use country bbox
                 bbox = self.get_country_bbox(country)
@@ -355,22 +332,6 @@ class FIRMSHandler:
         
         # Now we need to fetch data in chunks, respecting the API limits
         st.write(f"Fetching fire data from {start_date_str} to {end_date_str} for {country or 'selected region'}...")
-        
-        # Create date chunks
-        date_chunks = []
-        current_date = start_date_date
-        while current_date <= end_date_date:
-            chunk_end = min(current_date + timedelta(days=min(10, chunk_days)-1), end_date_date)
-            date_chunks.append((current_date, chunk_end))
-            current_date = chunk_end + timedelta(days=1)
-        
-        # Set up progress tracking
-        st.write(f"Processing data in {len(date_chunks)} chunks...")
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # Initialize combined results
-        all_results = pd.DataFrame()
         
         # Special handling for large countries
         large_countries = ['United States', 'China', 'Russia', 'Canada', 'Brazil', 'Australia', 'India']
