@@ -81,4 +81,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the terms of the LICENSE file included in the repository.
+This project is licensed under the terms of the MIT license.
